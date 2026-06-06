@@ -65,7 +65,7 @@ async function callGemini(systemPrompt, userPrompt, maxTokens = 2400) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      idToken,
+      
       systemPrompt: systemPrompt || "",
       prompt: userPrompt,
       maxTokens,
@@ -116,7 +116,7 @@ async function callGeminiSDC(prompt, maxTokens = 1500) {
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, prompt, maxTokens }),
+      body: JSON.stringify({  prompt, maxTokens }),
     });
     clearTimeout(timeout);
 
