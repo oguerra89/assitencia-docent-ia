@@ -349,7 +349,7 @@ function ApiKeyModal({ onSave, errorMsg }) {
   const handleSave = () => {
     const k = key.trim();
     if (!k) { setLocalError("Introdueix la clau API."); return; }
-    if (!k.startsWith("AIza")) { setLocalError("La clau de Gemini ha de començar per 'AIza'. Revisa-la."); return; }
+     
     saveApiKey(k);
     onSave(k);
   };
