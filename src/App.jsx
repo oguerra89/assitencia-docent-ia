@@ -41,25 +41,41 @@ function saveApiKey(key) {
 const GEMINI_MODEL = "gemini-1.5-flash";
 
 async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
-  const r = await fetch('/api/gemini', {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      idToken: "TEMPORAL", // Quan tinguis el login actiu, canviarem això pel token real
-      prompt: userPrompt,
-      systemPrompt: systemPrompt,
-      maxTokens: maxTokens
-    }),
-  });
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("CAL_CLAU");
 
-  const d = await r.json();
+  const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 90000);
 
-  if (!r.ok) {
-    throw new Error(d.error || "Error intern de connexió amb la IA");
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: fullPrompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+        }),
+      }
+    );
+    clearTimeout(timeout);
+    const d = await r.json();
+    if (d.error) {
+      if (d.error.code === 403 || (d.error.code === 400 && d.error.message?.includes("API_KEY")))
+        throw new Error("CLAU_INVALIDA");
+      throw new Error(d.error.message);
+    }
+    const text = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    if (!text) throw new Error("Resposta buida de la IA. Torna-ho a intentar.");
+    return text;
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === "AbortError") throw new Error("Temps esgotat. Torna-ho a intentar.");
+    throw e;
   }
-
-  if (!d.text) throw new Error("Resposta buida de la IA. Torna-ho a intentar.");
-  return d.text;
 }
 
 async function geminiJSON(systemPrompt, userPrompt, maxTokens = 2400) {
