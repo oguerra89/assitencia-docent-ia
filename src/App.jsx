@@ -403,13 +403,13 @@ function ApiKeyModal({ onSave, errorMsg }) {
           }}>
             <strong>Com obtenir la clau gratuïta:</strong>
             <ol style={{ margin:"8px 0 0 16px", padding:0 }}>
-              <li>Ves a <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0284c7", fontWeight:700 }}>aistudio.google.com</a></li>
-              <li>Inicia sessió amb el teu compte de Google</li>
-              <li>Clica <strong>"Get API key"</strong> → <strong>"Create API key"</strong></li>
+              <li>Ves a <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0284c7", fontWeight:700 }}>console.groq.com</a></li>
+              <li>Crea un compte gratuït</li>
+              <li>Ves a <strong>"API Keys"</strong> → <strong>"Create API Key"</strong></li>
               <li>Copia la clau i enganxa-la aquí sota</li>
             </ol>
             <div style={{ marginTop:10, padding:"6px 10px", background:"#dcfce7", borderRadius:7, fontSize:12, color:"#166534" }}>
-              ✅ Pla gratuït: ~1.500 peticions/dia. Més que suficient per a ús docent.
+              ✅ Pla gratuït: Pla gratuït de Groq: més que suficient per a ús docent.
             </div>
           </div>
 
