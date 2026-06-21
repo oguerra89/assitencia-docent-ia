@@ -403,7 +403,7 @@ function ApiKeyModal({ onSave, errorMsg }) {
           }}>
             <strong>Com obtenir la clau gratuïta:</strong>
             <ol style={{ margin:"8px 0 0 16px", padding:0 }}>
-              <li>Ves a <a href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0284c7", fontWeight:700 }}>aistudio.google.com</a></li>
+              <li>Ves a <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0284c7", fontWeight:700 }}>aistudio.google.com</a></li>
               <li>Inicia sessió amb el teu compte de Google</li>
               <li>Clica <strong>"Get API key"</strong> → <strong>"Create API key"</strong></li>
               <li>Copia la clau i enganxa-la aquí sota</li>
