@@ -109,25 +109,27 @@ async function geminiSDC(prompt, maxTokens = 1500) {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error("CAL_CLAU");
 
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        signal: ctrl.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
-        }),
-      }
-    );
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: maxTokens,
+        temperature: 0.9,
+      }),
+    });
     clearTimeout(timeout);
     const d = await r.json();
     if (d.error) {
-      if (d.error.code === 403 || (d.error.code === 400 && d.error.message?.includes("API_KEY"))) throw new Error("CLAU_INVALIDA");
+      if (d.error.code === 401) throw new Error("CLAU_INVALIDA");
       throw new Error(d.error.message);
     }
-    const text = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = d.choices?.[0]?.message?.content || "";
     if (!text) throw new Error("Resposta buida de la IA");
     return text;
   } catch (e) {
