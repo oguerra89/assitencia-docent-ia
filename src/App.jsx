@@ -37,38 +37,41 @@ function saveApiKey(key) {
   localStorage.setItem("gemini_api_key", key);
 }
 
-// ─── API GEMINI ───────────────────────────────────────────────────────────────
-const GEMINI_MODEL = "gemini-1.5-flash";
+// ─── API GROQ
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("CAL_CLAU");
 
-  const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90000);
 
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        signal: ctrl.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: fullPrompt }] }],
-          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
-        }),
-      }
-    );
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.9,
+      }),
+    });
     clearTimeout(timeout);
     const d = await r.json();
     if (d.error) {
-      if (d.error.code === 403 || (d.error.code === 400 && d.error.message?.includes("API_KEY")))
-        throw new Error("CLAU_INVALIDA");
+      if (d.error.code === 401) throw new Error("CLAU_INVALIDA");
       throw new Error(d.error.message);
     }
-    const text = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = d.choices?.[0]?.message?.content || "";
     if (!text) throw new Error("Resposta buida de la IA. Torna-ho a intentar.");
     return text;
   } catch (e) {
