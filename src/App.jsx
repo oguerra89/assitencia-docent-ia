@@ -390,7 +390,7 @@ function ApiKeyModal({ onSave, errorMsg }) {
             Configura la clau API
           </h2>
           <p style={{ color:"rgba(255,255,255,0.85)", fontSize:13, margin:0, lineHeight:1.5 }}>
-            Necessites una clau gratuïta de Google Gemini per usar l'app
+            Necessites una clau gratuïta de Groq per usar l'app
           </p>
         </div>
 
