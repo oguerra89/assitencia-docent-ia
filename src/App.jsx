@@ -409,13 +409,13 @@ function ApiKeyModal({ onSave, errorMsg }) {
               <li>Copia la clau i enganxa-la aquí sota</li>
             </ol>
             <div style={{ marginTop:10, padding:"6px 10px", background:"#dcfce7", borderRadius:7, fontSize:12, color:"#166534" }}>
-              ✅ Pla gratuït: Pla gratuït de Groq: més que suficient per a ús docent.
+              ✅ Pla gratuït de Groq: més que suficient per a ús docent.
             </div>
           </div>
 
           {/* Input */}
           <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#374151", marginBottom:6 }}>
-            Clau API de Gemini
+            Clau API de Groq
           </label>
           <div style={{ position:"relative", marginBottom:err ? 10 : 20 }}>
             <input
@@ -2424,7 +2424,7 @@ export default function App() {
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               {/* Botó canviar clau */}
               <button onClick={() => { setApiModalError(""); setShowApiModal(true); }}
-                title="Canviar clau API de Gemini"
+                title="Canviar Clau API de Groq"
                 style={{ fontSize:11, color: apiKey ? "#059669" : "#dc2626", background:"none",
                   border:`1px solid ${apiKey ? "#86efac" : "#fca5a5"}`,
                   borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
