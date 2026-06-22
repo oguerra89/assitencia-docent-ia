@@ -1135,27 +1135,27 @@ Ara genera el MARC competencial REAL per la SdA "${titol}" amb les àrees ${aree
       const [raw2, raw3] = await Promise.all([
         geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
 
-Genera 3 objectius d'aprenentatge amb CRITERI D'AVALUACIÓ i GRADACIÓ completa.
+Genera UN OBJECTIU D'APRENENTATGE per cada CA del marc competencial d'aquesta SdA. Han de ser exactament els mateixos CA que has generat al marc, amb el mateix número de CA.
 IMPORTANT: omple TOTS els camps N1, N2, N3 amb text real i concret, no deixis cap camp buit.
 
 Format EXACTE:
 <objectius>
 OBJ: Identificar les propietats dels estats de la matèria a través de l'experimentació
-CA: 2.3
-CRITERI: Dissenyar i realitzar experiments senzills per respondre preguntes sobre la matèria
-N1: Sap identificar alguns estats de la matèria però li costa relacionar-los amb les seves propietats i necessita suport constant de l'adult
-N2: Identifica els estats de la matèria i les seves propietats principals però no sempre utilitza el vocabulari científic adequat
-N3: Identifica amb precisió tots els estats de la matèria, les seves propietats i utilitza el vocabulari científic adequat en tot moment
+CA: 2.1.1
+CRITERI: Descriure les característiques principals dels estats de la matèria
+N1: Sap identificar alguns estats però necessita suport constant
+N2: Identifica els estats i les propietats però no sempre usa vocabulari adequat
+N3: Identifica amb precisió tots els estats i usa vocabulari científic adequat
 ---
-OBJ: Presentar els resultats de les investigacions de forma clara i ordenada
-CA: 2.5
-CRITERI: Presentar els resultats utilitzant formats diversos i llenguatge científic acurat
-N1: Presenta alguns resultats però l'organització és poc clara i utilitza poc el vocabulari específic
-N2: Presenta els resultats de manera organitzada però no sempre utilitza el llenguatge científic adequat
-N3: Presenta els resultats de manera clara, organitzada i amb el vocabulari científic adequat en tot moment
+OBJ: Relacionar les interaccions de les persones amb el medi natural
+CA: 3.2.1
+CRITERI: Identificar i descriure les interaccions entre persones i entorn
+N1: Identifica algunes interaccions amb suport
+N2: Identifica les interaccions però no sempre les relaciona amb conseqüències
+N3: Identifica i relaciona amb precisió les interaccions i les seves conseqüències
 </objectius>
 
-Ara genera 3 objectius propis per la SdA "${titol}" seguint exactament aquest format.`, 1400),
+Ara genera els objectius per la SdA "${titol}" seguint exactament aquest format. Un objectiu per cada CA del marc competencial generat.`, 1400),
 
         geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
 
