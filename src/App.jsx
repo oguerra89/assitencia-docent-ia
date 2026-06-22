@@ -1130,91 +1130,38 @@ SABERS: Estratègies de comprensió oral. Vocabulari específic del tema treball
 Ara genera el MARC competencial REAL per la SdA "${titol}" amb les àrees ${arees.join(", ")}. Respecta exactament el format: cada entrada amb CE:, CA: i SABERS:, separades per "---". MÍNIM 3 ENTRADES.`, 1800),
       ]);
 
-      // Grup 2: Objectius + Activitats inicials i síntesi (en paral·lel)
-      setProgress("Generant objectius i activitats inicials... (2/3)");
-      const [raw2, raw3] = await Promise.all([
-        geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
-
-Genera UN OBJECTIU D'APRENENTATGE per cada CA del marc competencial d'aquesta SdA. Han de ser exactament els mateixos CA que has generat al marc, amb el mateix número de CA.
-IMPORTANT: omple TOTS els camps N1, N2, N3 amb text real i concret, no deixis cap camp buit.
-
-Format EXACTE:
-<objectius>
-OBJ: Identificar les propietats dels estats de la matèria a través de l'experimentació
-CA: 2.1.1
-CRITERI: Descriure les característiques principals dels estats de la matèria
-N1: Sap identificar alguns estats però necessita suport constant
-N2: Identifica els estats i les propietats però no sempre usa vocabulari adequat
-N3: Identifica amb precisió tots els estats i usa vocabulari científic adequat
----
-OBJ: Relacionar les interaccions de les persones amb el medi natural
-CA: 3.2.1
-CRITERI: Identificar i descriure les interaccions entre persones i entorn
-N1: Identifica algunes interaccions amb suport
-N2: Identifica les interaccions però no sempre les relaciona amb conseqüències
-N3: Identifica i relaciona amb precisió les interaccions i les seves conseqüències
-</objectius>
-
-Ara genera els objectius per la SdA "${titol}" seguint exactament aquest format. Un objectiu per cada CA del marc competencial generat.`, 1400),
-
-        geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
+      // Grup 2: Activitats inicials i síntesi
+      setProgress("Generant activitats inicials i de síntesi... (2/3)");
+      const raw3 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
 
 Genera les activitats INICIALS (1a sessió) i de SÍNTESI (última sessió) per la SdA "${titol}".
 
 FORMAT EXACTE:
 <inicials>
 ACT: Activitat 1 - Sessió 1
-DESC: Introducció de la SdA a través d'una pregunta provocadora o experiment sorpresa per activar coneixements previs.
+DESC: Introducció de la SdA a través d'una pregunta provocadora per activar coneixements previs.
 AGRUPAMENT: Gran grup - Aula
 TEMPS: 30 min
-MATERIALS: Pissarra digital, materials per a l'experiment introductori
-AVALUACIO: Registre oral de coneixements previs a la pissarra
+MATERIALS: Pissarra digital, materials introductori
+AVALUACIO: Registre oral de coneixements previs
 ---
 ACT: Activitat 2 - Sessió 1
-DESC: Presentació de la SdA: objectius, producte final, organització de grups i presentació de la rúbrica d'avaluació.
+DESC: Presentació de la SdA: objectius, producte final i rúbrica d'avaluació.
 AGRUPAMENT: Gran grup - Aula
 TEMPS: 30 min
-MATERIALS: Dossier de l'alumne, rúbrica d'avaluació
+MATERIALS: Dossier de l'alumne, rúbrica
 AVALUACIO: Autoavaluació inicial
 </inicials>
 <sintesi>
 ACT: Activitat final - Sessió ${numSessions}
-DESC: Presentació del producte final per part de cada grup, debat conjunt sobre els aprenentatges i avaluació.
+DESC: Presentació del producte final, debat conjunt i avaluació.
 AGRUPAMENT: Individual i gran grup - Aula
 TEMPS: 60 min
-MATERIALS: Rúbrica d'autoavaluació, producte final de cada grup
+MATERIALS: Rúbrica d'autoavaluació, producte final
 AVALUACIO: Rúbrica d'avaluació i autoavaluació
 </sintesi>
 
-Ara genera les activitats INICIALS i de SÍNTESI REALS per "${titol}" amb el mateix format.`, 1400),
-      ]);
-
-      // Grup 3: Desenvolupament
-      setProgress("Generant sessions de desenvolupament... (3/3)");
-      const raw4 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
-
-Genera activitats de DESENVOLUPAMENT per cobrir les sessions 2 a ${numSessions - 1} (total: ${sessDesenv} sessions) per la SdA "${titol}".
-IMPORTANT: genera UNA ACTIVITAT PER SESSIÓ com a mínim. Si hi ha ${sessDesenv} sessions de desenvolupament, ha d'haver-hi ${sessDesenv} activitats com a mínim. No agrupis sessions si el total és baix.
-
-FORMAT EXACTE:
-<desenvolupament>
-ACT: Activitat 3 - Sessió 2
-DESC: Els alumnes formen grups de 4 i cada grup tria una pregunta d'investigació. Recullen hipòtesis i dissenyen un experiment senzill per validar-les.
-AGRUPAMENT: Petit grup (4 alumnes) - Aula i laboratori
-TEMPS: 60 min
-MATERIALS: Material de laboratori, diari científic, tauleta per cercar informació
-AVALUACIO: Observació directa, diari científic
----
-ACT: Activitat 4 - Sessió 3
-DESC: Cada grup realitza l'experiment dissenyat i recull les dades obtingudes.
-AGRUPAMENT: Petit grup - Laboratori
-TEMPS: 60 min
-MATERIALS: Material de laboratori, diari científic
-AVALUACIO: Rúbrica de treball cooperatiu
-</desenvolupament>
-
-Ara genera les activitats REALS per "${titol}". OBLIGATORI: genera EXACTAMENT ${sessDesenv} activitats separades per "---", una per cada sessió de desenvolupament (sessions 2 fins a ${numSessions - 1}). Cada activitat ha de tenir el seu propi número de sessió. NO agrupis sessions.`, 1500),
-
+Ara genera les activitats INICIALS i de SÍNTESI REALS per "${titol}" amb el mateix format.`, 1400);
       // Parseig marc competencial
       const marcBloc = tag_SDC(raw1b, "marc");
       const marc = marcBloc ? marcBloc.split("---").map(bloc => {
