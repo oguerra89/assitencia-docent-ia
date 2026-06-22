@@ -1213,7 +1213,7 @@ MATERIALS: Material de laboratori, diari científic
 AVALUACIO: Rúbrica de treball cooperatiu
 </desenvolupament>
 
-Ara genera les activitats REALS per "${titol}" amb UNA ACTIVITAT PER SESSIÓ per les ${sessDesenv} sessions de desenvolupament.`, 1500),
+Ara genera les activitats REALS per "${titol}". OBLIGATORI: genera EXACTAMENT ${sessDesenv} activitats separades per "---", una per cada sessió de desenvolupament (sessions 2 fins a ${numSessions - 1}). Cada activitat ha de tenir el seu propi número de sessió. NO agrupis sessions.`, 1500),
 
       // Parseig marc competencial
       const marcBloc = tag_SDC(raw1b, "marc");
