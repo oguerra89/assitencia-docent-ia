@@ -1194,25 +1194,26 @@ Ara genera les activitats INICIALS i de SÍNTESI REALS per "${titol}" amb el mat
       const raw4 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
 
 Genera activitats de DESENVOLUPAMENT per cobrir les sessions 2 a ${numSessions - 1} (total: ${sessDesenv} sessions) per la SdA "${titol}".
+IMPORTANT: genera UNA ACTIVITAT PER SESSIÓ com a mínim. Si hi ha ${sessDesenv} sessions de desenvolupament, ha d'haver-hi ${sessDesenv} activitats com a mínim. No agrupis sessions si el total és baix.
 
 FORMAT EXACTE:
 <desenvolupament>
-ACT: Activitat 3 - Sessions 2 i 3
+ACT: Activitat 3 - Sessió 2
 DESC: Els alumnes formen grups de 4 i cada grup tria una pregunta d'investigació. Recullen hipòtesis i dissenyen un experiment senzill per validar-les.
 AGRUPAMENT: Petit grup (4 alumnes) - Aula i laboratori
-TEMPS: 120 min (2 sessions)
+TEMPS: 60 min
 MATERIALS: Material de laboratori, diari científic, tauleta per cercar informació
-AVALUACIO: Observació directa, diari científic, rúbrica de treball cooperatiu
+AVALUACIO: Observació directa, diari científic
 ---
-ACT: Activitat 4 - Sessions 4 i 5
-DESC: Cada grup analitza els resultats obtinguts, els compara amb les hipòtesis inicials i extreu conclusions.
-AGRUPAMENT: Petit grup - Aula
-TEMPS: 120 min (2 sessions)
-MATERIALS: Tauletes, plantilles de presentació, diari científic
-AVALUACIO: Rúbrica d'avaluació, autoavaluació
+ACT: Activitat 4 - Sessió 3
+DESC: Cada grup realitza l'experiment dissenyat i recull les dades obtingudes.
+AGRUPAMENT: Petit grup - Laboratori
+TEMPS: 60 min
+MATERIALS: Material de laboratori, diari científic
+AVALUACIO: Rúbrica de treball cooperatiu
 </desenvolupament>
 
-Ara genera les activitats REALS per "${titol}" distribuint les ${sessDesenv} sessions. Màxim 3-4 activitats en total.`, 1500);
+Ara genera les activitats REALS per "${titol}" amb UNA ACTIVITAT PER SESSIÓ per les ${sessDesenv} sessions de desenvolupament.`, 1500),
 
       // Parseig marc competencial
       const marcBloc = tag_SDC(raw1b, "marc");
