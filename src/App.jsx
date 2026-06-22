@@ -423,7 +423,7 @@ function ApiKeyModal({ onSave, errorMsg }) {
               value={key}
               onChange={e => { setKey(e.target.value); setLocalError(""); }}
               onKeyDown={e => e.key === "Enter" && handleSave()}
-              placeholder="AIzaSy..."
+              placeholder="gsk_..."
               style={{
                 width:"100%", padding:"11px 44px 11px 14px",
                 borderRadius:10, border: err ? "2px solid #ef4444" : "2px solid #e2e8f0",
