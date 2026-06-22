@@ -1448,7 +1448,7 @@ Ara genera les activitats REALS per "${titol}" distribuint les ${sessDesenv} ses
               <tr>
                 <th style={thStyle}>CA</th>
                 <th style={thStyle}>Objectiu d'Aprenentatge</th>
-                <th style={thStyle}>Criteri d'Avaluació UD</th>
+                <th style={thStyle}>Criteri d'Avaluació</th>
                 <th style={{ ...thStyle, background:"#b45309" }}>N1 Satisfactori</th>
                 <th style={{ ...thStyle, background:"#1565c0" }}>N2 Notable</th>
                 <th style={{ ...thStyle, background:"#2e7d32" }}>N3 Excel·lent</th>
