@@ -1162,7 +1162,7 @@ AVALUACIO: Rúbrica d'avaluació i autoavaluació
 </sintesi>
 
 Ara genera les activitats INICIALS i de SÍNTESI REALS per "${titol}" amb el mateix format.`, 1400);
-      // Parseig marc competencial
+ // Parseig marc competencial
       const marcBloc = tag_SDC(raw1b, "marc");
       const marc = marcBloc ? marcBloc.split("---").map(bloc => {
         const lines = bloc.trim().split("\n").filter(l => l.trim());
@@ -1180,6 +1180,65 @@ Ara genera les activitats INICIALS i de SÍNTESI REALS per "${titol}" amb el mat
         };
       }).filter(r => r.ce || r.ca) : [];
 
+      // Generem objectius basats en els CA reals del marc
+      const caList = marc.map((r, i) => `${i+1}. ${r.ca}`).join("\n");
+      setProgress("Generant objectius d'aprenentatge... (2.5/3)");
+      const raw2 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
+
+Aquests són els Criteris d'Avaluació (CA) del marc competencial d'aquesta SdA:
+${caList}
+
+Genera UN OBJECTIU D'APRENENTATGE per cadascun d'aquests ${marc.length} CA, en el mateix ordre i amb els mateixos números de CA.
+IMPORTANT: omple TOTS els camps N1, N2, N3 amb text real i concret.
+
+Format EXACTE:
+<objectius>
+OBJ: Identificar les propietats dels estats de la matèria
+CA: CA 2.1.1
+CRITERI: Descriure les característiques principals dels estats de la matèria
+N1: Sap identificar alguns estats però necessita suport constant
+N2: Identifica els estats però no sempre usa vocabulari adequat
+N3: Identifica amb precisió tots els estats i usa vocabulari científic adequat
+---
+OBJ: Relacionar les interaccions de les persones amb el medi
+CA: CA 3.2.1
+CRITERI: Identificar i descriure les interaccions entre persones i entorn
+N1: Identifica algunes interaccions amb suport
+N2: Identifica les interaccions però no sempre les relaciona amb conseqüències
+N3: Identifica i relaciona amb precisió totes les interaccions
+</objectius>
+
+Genera exactament ${marc.length} objectius, un per cada CA llistat.`, 1800);
+
+      // Grup 3: Desenvolupament — una activitat per sessió
+      setProgress("Generant sessions de desenvolupament... (3/3)");
+      const sessionsLlista = Array.from({length: sessDesenv}, (_, i) => `Sessió ${i + 2}`).join(", ");
+      const raw4 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
+
+Genera exactament ${sessDesenv} activitats de DESENVOLUPAMENT, una per cada sessió: ${sessionsLlista}.
+
+FORMAT EXACTE (separa cada activitat amb "---"):
+<desenvolupament>
+ACT: Activitat 3 - Sessió 2
+DESC: Descripció detallada de l'activitat.
+AGRUPAMENT: Petit grup (4 alumnes) - Aula
+TEMPS: 60 min
+MATERIALS: Materials necessaris
+AVALUACIO: Instrument d'avaluació
+---
+ACT: Activitat 4 - Sessió 3
+DESC: Descripció detallada de l'activitat.
+AGRUPAMENT: Petit grup - Aula
+TEMPS: 60 min
+MATERIALS: Materials necessaris
+AVALUACIO: Instrument d'avaluació
+</desenvolupament>
+
+Genera EXACTAMENT ${sessDesenv} activitats per "${titol}", una per cada sessió (${sessionsLlista}). Cada activitat diferent.`, 2000);
+
+      // Parseig objectius
+      const objBloc = tag_SDC(raw2, "objectius");
+      const objectius = objBloc ? objBloc.split("---").map(bloc => {
       // Parseig objectius
       const objBloc = tag_SDC(raw2, "objectius");
       const objectius = objBloc ? objBloc.split("---").map(bloc => {
