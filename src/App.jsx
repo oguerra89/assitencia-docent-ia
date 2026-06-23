@@ -1098,18 +1098,15 @@ function SdACreador({ onToast, onApiKeyError }) {
   }
 
   function parseObjBloc(raw) {
-    // Intentem treure el contingut de les etiquetes; si no hi ha etiquetes, usem el raw sencer
-    let contingut = tag_SDC(raw, "objectius");
-    if (!contingut) contingut = raw.trim();
-    if (!contingut) return [];
-
-    // Separador robust: ---, línies en blanc dobles, o nova entrada OBJ:
-    let blocs = contingut.split(/\n\s*---+\s*\n/);
-    if (blocs.length <= 1) blocs = contingut.split(/\n{2,}(?=OBJ:|OBJECTIU:)/i);
-    if (blocs.length <= 1 && (contingut.match(/^OBJ:/gim) || []).length > 1) {
-      blocs = contingut.split(/(?=^OBJ:)/im);
+    const objBloc = tag_SDC(raw, "objectius");
+    if (!objBloc) return [];
+    // Separador robust: accepta ---, ***, línia en blanc doble, o línia que comença per OBJ:
+    // Primer intentem separar per --- o línies en blanc múltiples
+    let blocs = objBloc.split(/\n\s*---+\s*\n|\n{2,}(?=OBJ:|OBJECTIU:)/i);
+    // Si no ha funcionat i només hi ha 1 bloc però conté múltiples OBJ:, separar manualment
+    if (blocs.length <= 1 && (objBloc.match(/^OBJ:/gim) || []).length > 1) {
+      blocs = objBloc.split(/(?=^OBJ:)/im);
     }
-
     return blocs.map(bloc => {
       const lines = bloc.trim().split("\n").filter(l => l.trim());
       const get = (...prefixes) => {
@@ -1232,21 +1229,8 @@ N3: Descripció nivell 3
 Genera els objectius (mínim 1 per CA, màxim 6 en total). RECORDA: cada objectiu separat per --- en una línia sola.`, 2000);
 
       const parsed = parseObjBloc(raw);
-      if (parsed.length === 0) {
-        // Fallback: intentem crear almenys un objectiu per CA a partir del text en brut
-        const fallback = marcData.map((r, i) => ({
-          obj: `Objectiu relacionat amb: ${r.ca}`,
-          ca: r.ca.split(":")[0].trim(),
-          criteri: r.ca,
-          n1: "Assoliment inicial amb suport del docent",
-          n2: "Assoliment amb autonomia creixent",
-          n3: "Assoliment autònom i amb iniciativa pròpia"
-        })).slice(0, 6);
-        if (fallback.length === 0) throw new Error("No s'han pogut generar els objectius. Torna-ho a intentar.");
-        setObjData(fallback);
-      } else {
-        setObjData(parsed);
-      }
+      if (parsed.length === 0) throw new Error("No s'han pogut generar els objectius. Torna-ho a intentar.");
+      setObjData(parsed);
       setStep(2);
     } catch (e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
@@ -1942,6 +1926,38 @@ const TABS_INF = [
   { id:"informes", label:"Informes",     icon:"📄" },
 ];
 
+
+// ─── CÀLCUL MITJANA PER ÀREA ─────────────────────────────────────────────────
+const VAL_NUM = { NA: 4, AS: 5.5, AN: 7.5, AE: 9.5 };
+
+function numToVal(n) {
+  if (n === null) return null;
+  if (n < 5) return "NA";
+  if (n < 7) return "AS";
+  if (n < 9) return "AN";
+  return "AE";
+}
+
+function calcMitjanaArea(aId, ai, valoracions, criterisPerArea, criterisGeneral, comentarisGeneral) {
+  let vals = [];
+  if (aId === "general") {
+    criterisGeneral.forEach((_, ci) => {
+      const v = comentarisGeneral[`g_${ai}_${ci}`];
+      if (v && VAL_NUM[v] !== undefined) vals.push(VAL_NUM[v]);
+    });
+  } else {
+    const crit = criterisPerArea[aId] || [];
+    const aVals = (valoracions[aId] || {})[ai] || {};
+    crit.forEach((_, ci) => {
+      const v = aVals[ci];
+      if (v && VAL_NUM[v] !== undefined) vals.push(VAL_NUM[v]);
+    });
+  }
+  if (vals.length === 0) return null;
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  return { num: Math.round(avg * 10) / 10, lletra: numToVal(avg) };
+}
+
 function InformesTab({ onToast, onApiKeyError }) {
   const [tab, setTab]               = usePersistedState("inf_tab", "config");
   const [trimestre, setTrimestre]   = usePersistedState("inf_trimestre", null);
@@ -2396,7 +2412,28 @@ function InformesTab({ onToast, onApiKeyError }) {
               <MobCard title={alumnes[alumneActiu]}>
                 {areesSelObj.map(aObj => (
                   <div key={aObj.id} style={{ marginBottom:"1.2rem", borderBottom:"1px solid #f0f0f0", paddingBottom:"1rem" }}>
-                    <InfLabel>{aObj.icon} {aObj.label}</InfLabel>
+                    {(() => {
+                      const mitjana = calcMitjanaArea(aObj.id, alumneActiu, valoracions, criterisPerArea, criterisGeneral, comentarisGeneral);
+                      return (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"0.4rem" }}>
+                          <InfLabel>{aObj.icon} {aObj.label}</InfLabel>
+                          {mitjana && (
+                            <div style={{
+                              display:"flex", alignItems:"center", gap:5,
+                              background: VAL_META[mitjana.lletra].bg,
+                              border: `1.5px solid ${VAL_META[mitjana.lletra].border}`,
+                              borderRadius:20, padding:"2px 10px",
+                            }}>
+                              <span style={{ fontSize:"0.7rem", color:"#666" }}>Mitjana</span>
+                              <span style={{ fontWeight:800, fontSize:"0.82rem", color: VAL_META[mitjana.lletra].color }}>
+                                {mitjana.lletra}
+                              </span>
+                              <span style={{ fontSize:"0.68rem", color:"#999" }}>({mitjana.num})</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div style={{ display:"flex", flexDirection:"column", gap:"0.2rem", marginBottom:"0.75rem" }}>
                       {aObj.id === "general"
                         ? criterisGeneral.map((c, ci) => {
