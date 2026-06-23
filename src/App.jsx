@@ -1100,7 +1100,14 @@ function SdACreador({ onToast, onApiKeyError }) {
   function parseObjBloc(raw) {
     const objBloc = tag_SDC(raw, "objectius");
     if (!objBloc) return [];
-    return objBloc.split("---").map(bloc => {
+    // Separador robust: accepta ---, ***, línia en blanc doble, o línia que comença per OBJ:
+    // Primer intentem separar per --- o línies en blanc múltiples
+    let blocs = objBloc.split(/\n\s*---+\s*\n|\n{2,}(?=OBJ:|OBJECTIU:)/i);
+    // Si no ha funcionat i només hi ha 1 bloc però conté múltiples OBJ:, separar manualment
+    if (blocs.length <= 1 && (objBloc.match(/^OBJ:/gim) || []).length > 1) {
+      blocs = objBloc.split(/(?=^OBJ:)/im);
+    }
+    return blocs.map(bloc => {
       const lines = bloc.trim().split("\n").filter(l => l.trim());
       const get = (...prefixes) => {
         for (const p of prefixes) {
@@ -1146,7 +1153,7 @@ function SdACreador({ onToast, onApiKeyError }) {
   // PAS 1: Generar Marc Curricular
   async function generarMarc() {
     if (!titol || !fil || arees.length === 0) return;
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setMarcData([]); // neteja per si es reinicia
     try {
       const cursObj = CURSOS_SDC.find(c => c.id === curs) || CURSOS_SDC[2];
       setProgress("Generant marc curricular LOMLOE...");
@@ -1181,7 +1188,7 @@ Genera el MARC competencial REAL per "${titol}" amb les àrees ${arees.join(", "
 
   // PAS 2: Generar Objectius
   async function generarObjectius() {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setObjData([]); // neteja per si es reinicia
     try {
       const cursObj = CURSOS_SDC.find(c => c.id === curs) || CURSOS_SDC[2];
       setProgress("Generant objectius d'aprenentatge...");
@@ -1193,8 +1200,9 @@ ${caList}
 
 Genera UN O MÉS OBJECTIUS D'APRENENTATGE per cadascun d'aquests ${marcData.length} CA, en el mateix ordre. Total màxim: 6 objectius.
 IMPORTANT: omple TOTS els camps N1, N2, N3 amb text real i concret.
+CRÍTIC: Separa CADA objectiu amb una línia que contingui EXACTAMENT tres guions: ---
 
-Format EXACTE:
+Format EXACTE (cada objectiu separat per ---):
 <objectius>
 OBJ: Identificar les propietats dels estats de la matèria
 CA: CA 2.1.1
@@ -1209,9 +1217,16 @@ CRITERI: Identificar i descriure les interaccions entre persones i entorn
 N1: Identifica algunes interaccions amb suport
 N2: Identifica les interaccions però no sempre les relaciona amb conseqüències
 N3: Identifica i relaciona amb precisió totes les interaccions
+---
+OBJ: Tercer exemple
+CA: CA 4.1.2
+CRITERI: Criteri del tercer objectiu
+N1: Descripció nivell 1
+N2: Descripció nivell 2
+N3: Descripció nivell 3
 </objectius>
 
-Genera els objectius (mínim 1 per CA, màxim 6 en total).`, 1800);
+Genera els objectius (mínim 1 per CA, màxim 6 en total). RECORDA: cada objectiu separat per --- en una línia sola.`, 2000);
 
       const parsed = parseObjBloc(raw);
       if (parsed.length === 0) throw new Error("No s'han pogut generar els objectius. Torna-ho a intentar.");
