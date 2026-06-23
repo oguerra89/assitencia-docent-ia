@@ -3,7 +3,7 @@ import {
   Users, BookOpen, FileText, Copy, Download, Plus, Trash2,
   Sparkles, ClipboardList, Accessibility, CheckCircle2,
   Wand2, Blocks, ListChecks, GraduationCap,
-  Repeat2, School, AlertTriangle, X, ClipboardCheck, Key
+  Repeat2, School, AlertTriangle, X, ClipboardCheck, Key, ChevronLeft, Edit3
 } from "lucide-react";
 
 // ─── PERSISTÈNCIA localStorage ───────────────────────────────────────────────
@@ -13,13 +13,11 @@ function usePersistedState(key, initial) {
     try {
       const stored = localStorage.getItem(fullKey);
       if (stored !== null) return JSON.parse(stored);
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
     return initial;
   });
   useEffect(() => {
-    try {
-      localStorage.setItem(fullKey, JSON.stringify(value));
-    } catch (e) { /* localStorage ple o no disponible */ }
+    try { localStorage.setItem(fullKey, JSON.stringify(value)); } catch (e) {}
   }, [fullKey, value]);
   return [value, setValue];
 }
@@ -30,39 +28,30 @@ function clearAllPersisted() {
   });
 }
 
-function getApiKey() {
-  return localStorage.getItem("gemini_api_key") || "";
-}
-function saveApiKey(key) {
-  localStorage.setItem("gemini_api_key", key);
-}
+function getApiKey() { return localStorage.getItem("gemini_api_key") || ""; }
+function saveApiKey(key) { localStorage.setItem("gemini_api_key", key); }
+function getDisclaimerAccepted() { return localStorage.getItem("docent_disclaimer_accepted") === "true"; }
+function setDisclaimerAccepted() { localStorage.setItem("docent_disclaimer_accepted", "true"); }
 
-// ─── API GROQ
+// ─── API GROQ ─────────────────────────────────────────────────────────────────
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("CAL_CLAU");
-
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90000);
-
   try {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      signal: ctrl.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [
           ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
           { role: "user", content: userPrompt }
         ],
-        max_tokens: maxTokens,
-        temperature: 0.9,
+        max_tokens: maxTokens, temperature: 0.9,
       }),
     });
     clearTimeout(timeout);
@@ -84,43 +73,30 @@ async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
 async function geminiJSON(systemPrompt, userPrompt, maxTokens = 2400) {
   const raw = await gemini(
     systemPrompt + "\nRespon ÚNICAMENT amb JSON vàlid i ben format. Sense text introductori, sense backticks, sense cap caràcter fora del JSON.",
-    userPrompt,
-    maxTokens
+    userPrompt, maxTokens
   );
-  // Eliminar possibles backticks de markdown que Gemini de vegades afegeix
   const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const start = cleaned.indexOf("{");
   const end   = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
+  if (start === -1 || end === -1 || end <= start)
     throw new Error("La IA no ha retornat un document vàlid. Torna-ho a intentar.");
-  }
-  try {
-    return JSON.parse(cleaned.slice(start, end + 1));
-  } catch (e) {
-    throw new Error("No s'ha pogut processar la resposta. Torna-ho a intentar.");
-  }
+  try { return JSON.parse(cleaned.slice(start, end + 1)); }
+  catch (e) { throw new Error("No s'ha pogut processar la resposta. Torna-ho a intentar."); }
 }
 
-// Funció unificada per a cridarIA_SDC (Creador SdA)
 async function geminiSDC(prompt, maxTokens = 1500) {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90000);
   try {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error("CAL_CLAU");
-
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      signal: ctrl.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: maxTokens,
-        temperature: 0.9,
+        max_tokens: maxTokens, temperature: 0.9,
       }),
     });
     clearTimeout(timeout);
@@ -139,18 +115,16 @@ async function geminiSDC(prompt, maxTokens = 1500) {
   }
 }
 
-// Funció per Informes
 async function geminiInf(prompt) {
   const r = await gemini("", prompt, 1000);
   return r.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
 }
 
-// ─── GESTIÓ D'ERRORS API ─────────────────────────────────────────────────────
 function isApiKeyError(err) {
   return err?.message === "CAL_CLAU" || err?.message === "CLAU_INVALIDA";
 }
 
-// ─── CONSTANTS COMPARTIDES ───────────────────────────────────────────────────
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const TIPUS_REUNIO = [
   { id: "cicle",         label: "Acta de Cicle",                      icon: Repeat2,       color: "emerald" },
   { id: "claustre",      label: "Acta de Claustre",                   icon: School,        color: "violet"  },
@@ -163,7 +137,6 @@ const NECESSITATS = [
   "Dislèxia", "Llengua estrangera", "Discapacitat motriu"
 ];
 
-
 const COL = {
   emerald: { bg:"#ecfdf5", border:"#6ee7b7", text:"#065f46", pill:"#d1fae5", btn:"#059669" },
   violet:  { bg:"#f5f3ff", border:"#c4b5fd", text:"#4c1d95", pill:"#ede9fe", btn:"#7c3aed" },
@@ -171,7 +144,6 @@ const COL = {
   amber:   { bg:"#fffbeb", border:"#fcd34d", text:"#78350f", pill:"#fef3c7", btn:"#d97706" },
 };
 
-// ─── CONSTANTS INFORMES ───────────────────────────────────────────────────────
 const TRIMESTRES_INF = [
   { id: 1, label: "1r Trimestre", months: "Set – Des" },
   { id: 2, label: "2n Trimestre", months: "Gen – Mar" },
@@ -294,12 +266,10 @@ function cleanActa(raw) {
 function buildAnonymizer() {
   const counters = {};
   const map = {};
-
   function nextToken(prefix) {
     counters[prefix] = (counters[prefix] || 0) + 1;
     return `[${prefix}_${counters[prefix]}]`;
   }
-
   const PATTERNS = [
     { re: /\b[0-9]{8}[A-HJ-NP-TV-Z]\b|\b[XYZ][0-9]{7}[A-HJ-NP-TV-Z]\b/gi, prefix: "DNI" },
     { re: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b|\b\d{14}\b/g, prefix: "TSI" },
@@ -312,7 +282,6 @@ function buildAnonymizer() {
       exclude: /^(?:Gener|Febrer|Març|Abril|Maig|Juny|Juliol|Agost|Setembre|Octubre|Novembre|Desembre|Dilluns|Dimarts|Dimecres|Dijous|Divendres|Dissabte|Diumenge|Català|Castellà|Anglès|Matemàtiques|Artística|Catalunya|Educació|Física|Natural|Social|Cultural|Valors|Cívics|Medi|Cicle|Claustre|Primària|Primaria|Secundària)$/i
     },
   ];
-
   function anonymize(text) {
     if (!text) return { anon: text, map: {} };
     let result = text;
@@ -333,7 +302,6 @@ function buildAnonymizer() {
     }
     return { anon: result, map: localMap };
   }
-
   function restore(text) {
     let result = text;
     for (const [token, original] of Object.entries(map)) {
@@ -341,7 +309,6 @@ function buildAnonymizer() {
     }
     return result;
   }
-
   return { anonymize, restore, getMap: () => ({ ...map }) };
 }
 
@@ -349,6 +316,83 @@ let _anonSession = buildAnonymizer();
 function resetAnon() { _anonSession = buildAnonymizer(); }
 const anonymize   = (text) => _anonSession.anonymize(text);
 const restoreAnon = (text) => _anonSession.restore(text);
+
+// ─── DISCLAIMER MODAL ────────────────────────────────────────────────────────
+function DisclaimerModal({ onAccept }) {
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:"rgba(15,23,42,0.85)", zIndex:30000,
+      display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem"
+    }}>
+      <div style={{
+        background:"white", borderRadius:20, width:"100%", maxWidth:520,
+        boxShadow:"0 32px 80px rgba(0,0,0,0.35)", overflow:"hidden"
+      }}>
+        <div style={{
+          background:"linear-gradient(135deg,#1e3a8a,#2563eb)",
+          padding:"28px 28px 24px", textAlign:"center"
+        }}>
+          <div style={{
+            width:56, height:56, background:"rgba(255,255,255,0.2)", borderRadius:16,
+            display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px"
+          }}>
+            <AlertTriangle size={26} color="white" />
+          </div>
+          <h2 style={{ color:"white", fontSize:20, fontWeight:800, margin:"0 0 6px" }}>
+            Avís important sobre l'ús de la IA
+          </h2>
+          <p style={{ color:"rgba(255,255,255,0.85)", fontSize:13, margin:0, lineHeight:1.5 }}>
+            Llegeix i accepta abans de continuar
+          </p>
+        </div>
+        <div style={{ padding:"24px 28px 28px" }}>
+          <div style={{
+            background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:12,
+            padding:"16px 18px", marginBottom:20, fontSize:13, color:"#0c4a6e", lineHeight:1.8
+          }}>
+            <p style={{ margin:"0 0 10px", fontWeight:700, color:"#1e3a8a" }}>
+              Aquesta eina utilitza Intel·ligència Artificial (IA) per generar contingut educatiu.
+            </p>
+            <ul style={{ margin:0, paddingLeft:18 }}>
+              <li>La IA pot <strong>cometre errors</strong>, especialment en competències específiques i criteris d'avaluació del currículum LOMLOE de Catalunya.</li>
+              <li style={{ marginTop:6 }}>Tot el contingut generat és una <strong>proposta de treball</strong>, no un document definitiu.</li>
+              <li style={{ marginTop:6 }}>És <strong>responsabilitat del docent</strong> revisar, validar i adaptar qualsevol contingut abans d'usar-lo a l'aula o en documents oficials.</li>
+              <li style={{ marginTop:6 }}>Les dades personals introduïdes s'<strong>anonimitzen</strong> automàticament abans d'enviar-se a la IA.</li>
+            </ul>
+          </div>
+          <button onClick={onAccept} style={{
+            width:"100%", padding:"14px", borderRadius:10, border:"none",
+            background:"linear-gradient(135deg,#1e3a8a,#2563eb)", color:"white",
+            fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+            boxShadow:"0 4px 14px rgba(30,58,138,0.4)"
+          }}>
+            He llegit i accepto continuar →
+          </button>
+          <p style={{ textAlign:"center", fontSize:11, color:"#94a3b8", marginTop:10, lineHeight:1.5 }}>
+            Aquesta acceptació es guarda al teu navegador.<br/>No se't tornarà a demanar en aquest dispositiu.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BANNER IA (peu de cada apartat) ─────────────────────────────────────────
+function IaBanner() {
+  return (
+    <div style={{
+      display:"flex", alignItems:"flex-start", gap:8,
+      background:"#f0f9ff", border:"1px solid #bae6fd",
+      borderRadius:10, padding:"10px 14px", marginTop:24,
+      fontSize:12, color:"#0c4a6e", lineHeight:1.6
+    }}>
+      <AlertTriangle size={14} color="#0284c7" style={{ flexShrink:0, marginTop:2 }} />
+      <span>
+        <strong>Contingut generat per IA:</strong> Els textos i documents generats per aquesta eina són propostes basades en el currículum LOMLOE de Catalunya. La IA pot cometre errors. És responsabilitat del docent revisar i validar tot el contingut abans d'usar-lo.
+      </span>
+    </div>
+  );
+}
 
 // ─── MODAL CLAU API ──────────────────────────────────────────────────────────
 function ApiKeyModal({ onSave, errorMsg }) {
@@ -359,7 +403,6 @@ function ApiKeyModal({ onSave, errorMsg }) {
   const handleSave = () => {
     const k = key.trim();
     if (!k) { setLocalError("Introdueix la clau API."); return; }
-     
     saveApiKey(k);
     onSave(k);
   };
@@ -375,7 +418,6 @@ function ApiKeyModal({ onSave, errorMsg }) {
         background:"white", borderRadius:20, width:"100%", maxWidth:480,
         boxShadow:"0 32px 80px rgba(0,0,0,0.3)", overflow:"hidden"
       }}>
-        {/* Capçalera */}
         <div style={{
           background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
           padding:"28px 28px 24px", textAlign:"center"
@@ -393,10 +435,7 @@ function ApiKeyModal({ onSave, errorMsg }) {
             Necessites una clau gratuïta de Groq per usar l'app
           </p>
         </div>
-
-        {/* Cos */}
         <div style={{ padding:"24px 28px 28px" }}>
-          {/* Instruccions */}
           <div style={{
             background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:10,
             padding:"14px 16px", marginBottom:20, fontSize:13, color:"#0c4a6e", lineHeight:1.7
@@ -412,8 +451,6 @@ function ApiKeyModal({ onSave, errorMsg }) {
               ✅ Pla gratuït de Groq: més que suficient per a ús docent.
             </div>
           </div>
-
-          {/* Input */}
           <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#374151", marginBottom:6 }}>
             Clau API de Groq
           </label>
@@ -438,17 +475,15 @@ function ApiKeyModal({ onSave, errorMsg }) {
               {show ? "🙈" : "👁️"}
             </button>
           </div>
-
           {err && (
             <div style={{
               display:"flex", gap:8, background:"#fef2f2", border:"1px solid #fca5a5",
               borderRadius:8, padding:"9px 12px", marginBottom:16, fontSize:12, color:"#b91c1c"
             }}>
               <AlertTriangle size={14} style={{ flexShrink:0, marginTop:1 }} />
-              {err === "CLAU_INVALIDA" ? "Clau API no vàlida o caducada. Comprova-la a aistudio.google.com." : err}
+              {err === "CLAU_INVALIDA" ? "Clau API no vàlida o caducada. Comprova-la a console.groq.com." : err}
             </div>
           )}
-
           <button onClick={handleSave} style={{
             width:"100%", padding:"13px", borderRadius:10, border:"none",
             background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"white",
@@ -457,7 +492,6 @@ function ApiKeyModal({ onSave, errorMsg }) {
           }}>
             Guardar clau i entrar →
           </button>
-
           <p style={{ textAlign:"center", fontSize:11, color:"#94a3b8", marginTop:12, lineHeight:1.5 }}>
             La clau es guarda només al teu navegador (localStorage).<br/>
             No s'envia a cap servidor nostre.
@@ -472,7 +506,6 @@ function ApiKeyModal({ onSave, errorMsg }) {
 function CopyModal({ text, onClose }) {
   const ref = useRef(null);
   const [copied, setCopied] = useState(false);
-
   const tryNativeCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
@@ -482,7 +515,6 @@ function CopyModal({ text, onClose }) {
       if (ref.current) { ref.current.select(); }
     }
   };
-
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:10000,
       display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem" }}>
@@ -534,7 +566,7 @@ function CopyModal({ text, onClose }) {
   );
 }
 
-// ─── ÀTOMS COMPARTITS ────────────────────────────────────────────────────────
+// ─── ÀTOMS ───────────────────────────────────────────────────────────────────
 function Toast({ msg, onClose }) {
   useEffect(() => {
     if (!msg) return;
@@ -634,7 +666,6 @@ function Loading({ text }) {
   );
 }
 
-// ─── DOC ACTION BAR ──────────────────────────────────────────────────────────
 function DocActionBar({ onCopy, onDownload }) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -651,7 +682,6 @@ function DocActionBar({ onCopy, onDownload }) {
   );
 }
 
-// ─── ACTA VIEW ────────────────────────────────────────────────────────────────
 function ActaDocView({ text, onCopyModal, onDownload }) {
   if (!text) return null;
   return (
@@ -667,21 +697,17 @@ function ActaDocView({ text, onCopyModal, onDownload }) {
   );
 }
 
-// ─── SdA STRUCTURED VIEW ──────────────────────────────────────────────────────
+// ─── SdA STRUCTURED VIEW (per Arquitecte) ────────────────────────────────────
 function SdADocView({ data, onCopyModal, onDownload }) {
   if (!data) return null;
-
   const THead = ({ cols, bg="#1e3a8a" }) => (
     <thead><tr>{cols.map((c, i) => (
       <th key={i} style={{ background:bg, color:"white", padding:"8px 10px", textAlign:"left",
         fontSize:11, fontWeight:700, letterSpacing:"0.04em", borderRight:"1px solid rgba(255,255,255,0.15)" }}>{c}</th>
     ))}</tr></thead>
   );
-
-  const tblStyle = { width:"100%", borderCollapse:"collapse", fontSize:12, marginBottom:0,
-    border:"1px solid #cbd5e1", borderRadius:6, overflow:"hidden" };
+  const tblStyle = { width:"100%", borderCollapse:"collapse", fontSize:12, marginBottom:0, border:"1px solid #cbd5e1", overflow:"hidden" };
   const td = (extra={}) => ({ padding:"7px 10px", borderBottom:"1px solid #e2e8f0", verticalAlign:"top", lineHeight:1.5, ...extra });
-
   const Section = ({ title, color="#1e3a8a", children }) => (
     <div style={{ marginBottom:22 }}>
       <div style={{ background:color, color:"white", padding:"6px 14px", fontSize:12, fontWeight:700,
@@ -689,14 +715,12 @@ function SdADocView({ data, onCopyModal, onDownload }) {
       <div style={{ border:"1px solid #cbd5e1", borderTop:"none", borderRadius:"0 0 4px 4px", padding:"12px 14px", background:"white" }}>{children}</div>
     </div>
   );
-
   return (
     <div style={{ marginTop:16 }}>
       <DocActionBar onCopy={onCopyModal} onDownload={onDownload} />
       <div style={{ background:"#e2e8f0", padding:"20px 16px", borderRadius:"0 0 10px 10px", border:"1.5px solid #e2e8f0", borderTop:"none" }}>
         <div style={{ background:"white", margin:"0 auto", maxWidth:800, padding:"40px 48px",
           boxShadow:"0 4px 24px rgba(0,0,0,0.10)", borderRadius:4, fontFamily:"'Georgia','Times New Roman',serif" }}>
-
           <Section title="1. Capçalera" color="#1e3a8a">
             <table style={tblStyle}><tbody>
               <tr>
@@ -717,16 +741,7 @@ function SdADocView({ data, onCopyModal, onDownload }) {
               </tr>
             </tbody></table>
           </Section>
-
-          <Section title="2. Justificació i Producte Final" color="#1e40af">
-            <p style={{ fontSize:12, lineHeight:1.7, marginBottom:12, color:"#374151" }}>{data.justificacio}</p>
-            <table style={tblStyle}>
-              <THead cols={["Producte Final Col·lectiu", "Producte Final Individual"]} bg="#2563eb" />
-              <tbody><tr><td style={td()}>{data.producte_collectiu}</td><td style={td()}>{data.producte_individual}</td></tr></tbody>
-            </table>
-          </Section>
-
-          <Section title="3. Marc Curricular" color="#1e40af">
+          <Section title="2. Marc Curricular" color="#1e40af">
             <table style={tblStyle}>
               <THead cols={["Àrea", "Competència Específica (CE)", "Criteri d'Avaluació (CA)", "Sabers Vinculats"]} bg="#2563eb" />
               <tbody>{(data.marc_curricular || []).map((row, i) => (
@@ -739,9 +754,7 @@ function SdADocView({ data, onCopyModal, onDownload }) {
               ))}</tbody>
             </table>
           </Section>
-
-          <Section title="4. Objectius d'Aprenentatge" color="#1e40af">
-            <p style={{ fontSize:11, color:"#64748b", fontStyle:"italic", marginBottom:8 }}>En finalitzar la SdA, l'alumne serà capaç de:</p>
+          <Section title="3. Objectius" color="#1e40af">
             <ul style={{ listStyle:"none", padding:0, margin:0 }}>
               {(data.objectius || []).map((o, i) => (
                 <li key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:12, lineHeight:1.5, color:"#374151" }}>
@@ -751,10 +764,9 @@ function SdADocView({ data, onCopyModal, onDownload }) {
               ))}
             </ul>
           </Section>
-
-          <Section title="5. Rúbrica de Gradació" color="#1e40af">
+          <Section title="4. Rúbrica" color="#1e40af">
             <table style={tblStyle}>
-              <THead cols={["Criteri d'Avaluació", "Satisfactori", "Notable", "Excel·lent"]} bg="#2563eb" />
+              <THead cols={["Criteri", "Satisfactori", "Notable", "Excel·lent"]} bg="#2563eb" />
               <tbody>{(data.rubrica || []).map((r, i) => (
                 <tr key={i} style={{ background: i%2===0 ? "white":"#f8fafc" }}>
                   <td style={{ ...td({ fontWeight:700, color:"#1e3a8a", width:"22%" }) }}>{r.criteri}</td>
@@ -765,10 +777,9 @@ function SdADocView({ data, onCopyModal, onDownload }) {
               ))}</tbody>
             </table>
           </Section>
-
-          <Section title="6. Seqüència Didàctica" color="#1e40af">
+          <Section title="5. Seqüència" color="#1e40af">
             <table style={tblStyle}>
-              <THead cols={["Sessió", "Desenvolupament de l'Activitat", "Agrupament", "Temps", "Materials", "Instrument Avaluació"]} bg="#2563eb" />
+              <THead cols={["Sessió", "Activitat", "Agrupament", "Temps", "Materials", "Avaluació"]} bg="#2563eb" />
               <tbody>{(data.sequencia || []).map((s, i) => (
                 <tr key={i} style={{ background: i%2===0 ? "white":"#f8fafc" }}>
                   <td style={{ ...td({ fontWeight:700, textAlign:"center", color:"#1e3a8a", width:"7%" }) }}>{s.sessio}</td>
@@ -781,66 +792,35 @@ function SdADocView({ data, onCopyModal, onDownload }) {
               ))}</tbody>
             </table>
           </Section>
-
-          <Section title="7. Connexions" color="#374151">
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div>
-                <div style={{ fontSize:11, fontWeight:700, color:"#475569", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>ODS Vinculats</div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                  {(data.ods || []).map((o, i) => (
-                    <span key={i} style={{ padding:"3px 8px", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:20, fontSize:11, color:"#475569" }}>{o}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize:11, fontWeight:700, color:"#475569", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>Relació amb altres Àrees</div>
-                <div style={{ fontSize:12, color:"#374151", lineHeight:1.6 }}>{data.connexions_arees}</div>
-              </div>
-            </div>
-          </Section>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── SdA → TEXT ──────────────────────────────────────────────────────────────
 function sdaToText(data) {
   if (!data) return "";
   let t = `SITUACIÓ D'APRENENTATGE\n${"═".repeat(60)}\n\n`;
-  t += `1. CAPÇALERA\n${"-".repeat(40)}\n`;
-  t += `Nº SdA: ${data.num_sda||"—"} | Àmbit: ${data.ambit||"—"} | Trimestre: ${data.trimestre||"—"} | Sessions: ${data.sessions||"—"}\n`;
   t += `Títol: ${data.titol}\n\n`;
-  t += `2. JUSTIFICACIÓ I PRODUCTE FINAL\n${"-".repeat(40)}\n${data.justificacio}\n`;
-  t += `Producte Col·lectiu: ${data.producte_collectiu}\nProducte Individual: ${data.producte_individual}\n\n`;
-  t += `3. MARC CURRICULAR\n${"-".repeat(40)}\n`;
-  (data.marc_curricular||[]).forEach(r => { t += `Àrea: ${r.area}\nCE: ${r.ce}\nCA: ${r.ca}\nSabers: ${r.sabers}\n\n`; });
-  t += `4. OBJECTIUS D'APRENENTATGE\n${"-".repeat(40)}\nEn finalitzar la SdA, l'alumne serà capaç de:\n`;
+  t += `MARC CURRICULAR\n${"-".repeat(40)}\n`;
+  (data.marc_curricular||[]).forEach(r => { t += `CE: ${r.ce}\nCA: ${r.ca}\nSabers: ${r.sabers}\n\n`; });
+  t += `OBJECTIUS\n${"-".repeat(40)}\n`;
   (data.objectius||[]).forEach((o,i) => { t += `  ${i+1}. ${o}\n`; });
-  t += `\n5. RÚBRICA DE GRADACIÓ\n${"-".repeat(40)}\n`;
-  (data.rubrica||[]).forEach(r => { t += `Criteri: ${r.criteri}\n  Satisfactori: ${r.satisfactori}\n  Notable: ${r.notable}\n  Excel·lent: ${r.excellent}\n\n`; });
-  t += `6. SEQÜÈNCIA DIDÀCTICA\n${"-".repeat(40)}\n`;
-  (data.sequencia||[]).forEach(s => { t += `Sessió ${s.sessio}: ${s.activitat}\n  Agrupament: ${s.agrupament} | Temps: ${s.temps} | Materials: ${s.materials} | Instrument: ${s.instrument}\n\n`; });
-  t += `7. CONNEXIONS\n${"-".repeat(40)}\nODS: ${(data.ods||[]).join(", ")}\nRelació amb àrees: ${data.connexions_arees}\n`;
+  t += `\nRÚBRICA\n${"-".repeat(40)}\n`;
+  (data.rubrica||[]).forEach(r => { t += `Criteri: ${r.criteri}\n  N1: ${r.satisfactori}\n  N2: ${r.notable}\n  N3: ${r.excellent}\n\n`; });
+  t += `SEQÜÈNCIA\n${"-".repeat(40)}\n`;
+  (data.sequencia||[]).forEach(s => { t += `Sessió ${s.sessio}: ${s.activitat}\n  Agrupament: ${s.agrupament} | Temps: ${s.temps}\n\n`; });
   return t;
 }
 
-// ─── SdA JSON PROMPT ─────────────────────────────────────────────────────────
 const SDA_SCHEMA = `{
-  "num_sda": "01",
-  "ambit": "àmbit principal",
-  "trimestre": "1r Trimestre",
-  "sessions": 6,
-  "titol": "títol de la SdA",
-  "justificacio": "justificació de 2-3 frases",
-  "producte_collectiu": "producte col·lectiu",
+  "num_sda": "01", "ambit": "àmbit principal", "trimestre": "1r Trimestre", "sessions": 6,
+  "titol": "títol", "justificacio": "justificació", "producte_collectiu": "producte col·lectiu",
   "producte_individual": "producte individual",
-  "marc_curricular": [{"area": "Català", "ce": "CE 1.1: ...", "ca": "CA 1.1.1: ...", "sabers": "sabers vinculats"}],
-  "objectius": ["objectiu 1", "objectiu 2", "objectiu 3"],
-  "rubrica": [{"criteri": "criteri 1", "satisfactori": "...", "notable": "...", "excellent": "..."}, {"criteri": "criteri 2", "satisfactori": "...", "notable": "...", "excellent": "..."}, {"criteri": "criteri 3", "satisfactori": "...", "notable": "...", "excellent": "..."}],
+  "marc_curricular": [{"area": "Català", "ce": "CE 1.1: ...", "ca": "CA 1.1.1: ...", "sabers": "sabers"}],
+  "objectius": ["objectiu 1"], "rubrica": [{"criteri": "criteri 1", "satisfactori": "...", "notable": "...", "excellent": "..."}],
   "sequencia": [{"sessio": 1, "activitat": "descripció", "agrupament": "Gran grup", "temps": "50 min", "materials": "materials", "instrument": "observació"}],
-  "ods": ["ODS 4: Educació de qualitat"],
-  "connexions_arees": "connexions amb altres àrees"
+  "ods": ["ODS 4"], "connexions_arees": "connexions"
 }`;
 
 // ═══════════════════════════════════════════════════════════════════
@@ -867,36 +847,25 @@ function ReunionsTab({ onToast, onApiKeyError }) {
     setLoading(true); setResult("");
     try {
       const tBon = tasques.filter(t => t.que);
-      const PROHIBIT = `
-PROHIBIT absolutament:
-- Cap símbol markdown: ni #, ni **, ni *, ni _, ni ---, ni ___
-- Cap "Codi de document" ni codis alfanumèrics
-- Cap "Modalitat: Presencial" ni cap camp similar
-- Cap línia de signatures ni guions per signar
-- Cap peu de pàgina ni "Document generat el..."
-- Cap fórmula de tancament ("I no havent-hi més assumptes...", etc.)
-- Cap títol amb ## ni cap format de llista amb *
-Escriu text pla, net, directament llegible.`;
-
+      const PROHIBIT = `\nPROHIBIT absolutament:\n- Cap símbol markdown: ni #, ni **, ni *, ni _, ni ---, ni ___\n- Cap "Codi de document" ni codis alfanumèrics\n- Cap "Modalitat: Presencial"\n- Cap línia de signatures\n- Cap peu de pàgina\n- Cap fórmula de tancament\nEscriu text pla, net, directament llegible.`;
       const toConfig = {
         families: {
-          system: `Ets un tutor/a de primària que escriu notes de reunions amb famílies. To proper, clar i directe. Frases curtes. Vocabulari entenedor. Mai inventes dades.${PROHIBIT}`,
-          instruccions: `Escriu una nota de reunió amb to proper i directe. Text pla.\nEstructura:\n- Data i qui hi era (una línia)\n- Aspectes positius de l'alumne/a (primer i destacats)\n- Temes tractats, explicats de manera natural\n- Acords, en punts curts i clars\n${tBon.length ? "- Tasques pendents: qui fa què i per quan" : ""}`,
+          system: `Ets un tutor/a de primària que escriu notes de reunions amb famílies. To proper, clar i directe. Frases curtes. Mai inventes dades.${PROHIBIT}`,
+          instruccions: `Escriu una nota de reunió amb to proper i directe. Text pla.\nEstructura:\n- Data i qui hi era\n- Aspectes positius de l'alumne/a (primer)\n- Temes tractats\n- Acords\n${tBon.length ? "- Tasques pendents" : ""}`,
         },
         cicle: {
-          system: `Ets un coordinador/a de cicle que escriu actes de reunions internes. To professional i directe. Frases clares. Mai inventes dades.${PROHIBIT}`,
-          instruccions: `Escriu l'acta de la reunió de cicle. Text pla.\nEstructura:\n- Data, assistents i objectiu (breu)\n- Punts tractats, de manera clara i concisa\n- Acords i decisions, numerats\n${tBon.length ? "- Tasques pendents amb responsable i termini" : ""}`,
+          system: `Ets un coordinador/a de cicle que escriu actes de reunions internes. To professional i directe. Mai inventes dades.${PROHIBIT}`,
+          instruccions: `Escriu l'acta de la reunió de cicle. Text pla.\nEstructura:\n- Data, assistents i objectiu\n- Punts tractats\n- Acords i decisions, numerats\n${tBon.length ? "- Tasques pendents amb responsable i termini" : ""}`,
         },
         claustre: {
-          system: `Ets un/a secretari/a de centre que escriu actes de claustre. To professional i accessible. Frases directes. Mai inventes dades.${PROHIBIT}`,
-          instruccions: `Escriu l'acta del claustre. Text pla.\nEstructura:\n- Data, assistents i ordre del dia (breu)\n- Cada punt de l'ordre del dia, explicat clarament\n- Acords adoptats, numerats\n${tBon.length ? "- Tasques i responsables" : ""}`,
+          system: `Ets un/a secretari/a de centre que escriu actes de claustre. To professional i accessible. Mai inventes dades.${PROHIBIT}`,
+          instruccions: `Escriu l'acta del claustre. Text pla.\nEstructura:\n- Data, assistents i ordre del dia\n- Cada punt, explicat clarament\n- Acords adoptats, numerats\n${tBon.length ? "- Tasques i responsables" : ""}`,
         },
         professionals: {
-          system: `Ets un/a mestre/a que escriu notes de reunions amb professionals externs. To professional i proper. Clar i concret. Mai inventes dades.${PROHIBIT}`,
-          instruccions: `Escriu la nota de reunió amb professional extern. Text pla.\nEstructura:\n- Data, qui hi era i motiu (breu)\n- Informació i valoracions compartides, de manera clara\n- Acords i passos a seguir, en punts\n${tBon.length ? "- Tasques concretes amb responsable i termini" : ""}`,
+          system: `Ets un/a mestre/a que escriu notes de reunions amb professionals externs. To professional i proper. Mai inventes dades.${PROHIBIT}`,
+          instruccions: `Escriu la nota de reunió amb professional extern. Text pla.\nEstructura:\n- Data, qui hi era i motiu\n- Informació compartida\n- Acords i passos a seguir\n${tBon.length ? "- Tasques concretes amb responsable i termini" : ""}`,
         },
       };
-
       const cfg = toConfig[tipus] || toConfig.cicle;
       resetAnon();
       const anonAssistents = anonymize(form.assistents || "").anon;
@@ -904,22 +873,9 @@ Escriu text pla, net, directament llegible.`;
       const anonAcords     = anonymize(form.acords || "").anon;
       const anonAspectes   = anonymize(form.aspectes || "").anon;
       const anonTasques    = tBon.map(t => ({
-        que: anonymize(t.que).anon,
-        qui: anonymize(t.qui).anon,
-        quan: t.quan
+        que: anonymize(t.que).anon, qui: anonymize(t.qui).anon, quan: t.quan
       }));
-
-      const prompt = `${cfg.instruccions}
-
-Dades de la reunió:
-- Data: ${form.data || "No especificada"}
-- Objectiu: ${form.objectiu || "No especificat"}
-- Assistents: ${anonAssistents || "No especificats"}
-- Temes tractats: ${anonTemes}
-- Acords i decisions: ${anonAcords || "No especificats"}
-${esFamilies && anonAspectes ? `- Aspectes positius de l'alumne/a: ${anonAspectes}` : ""}
-${anonTasques.length ? `- Tasques pendents:\n${anonTasques.map((t,i) => `  ${i+1}. ${t.que} | Responsable: ${t.qui || "Per determinar"} | Termini: ${t.quan || "Per determinar"}`).join("\n")}` : ""}`;
-
+      const prompt = `${cfg.instruccions}\n\nDades de la reunió:\n- Data: ${form.data || "No especificada"}\n- Objectiu: ${form.objectiu || "No especificat"}\n- Assistents: ${anonAssistents || "No especificats"}\n- Temes tractats: ${anonTemes}\n- Acords: ${anonAcords || "No especificats"}\n${esFamilies && anonAspectes ? `- Aspectes positius: ${anonAspectes}` : ""}\n${anonTasques.length ? `- Tasques:\n${anonTasques.map((t,i) => `  ${i+1}. ${t.que} | Responsable: ${t.qui || "Per determinar"} | Termini: ${t.quan || "Per determinar"}`).join("\n")}` : ""}`;
       const raw = await gemini(cfg.system, prompt, 1400);
       setResult(cleanActa(restoreAnon(raw)));
     } catch(e) {
@@ -967,34 +923,33 @@ ${anonTasques.length ? `- Tasques pendents:\n${anonTasques.map((t,i) => `  ${i+1
               </div>
               <div>
                 <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:5 }}>Objectiu de la reunió</label>
-                <Inp value={form.objectiu} onChange={v => sf("objectiu", v)} placeholder="Per exemple: fer seguiment acadèmic i emocional" />
+                <Inp value={form.objectiu} onChange={v => sf("objectiu", v)} placeholder="Per exemple: fer seguiment acadèmic" />
               </div>
             </div>
             <div style={{ marginBottom:14 }}>
               <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:5 }}>Assistents</label>
               <Inp value={form.assistents} onChange={v => sf("assistents", v)}
-                placeholder={esFamilies ? "Ex: Tutora Sra. P., mare Sra. G., pare Sr. L." : "Ex: Directora, mestres de cicle, orientadora"} />
+                placeholder={esFamilies ? "Ex: Tutora Sra. P., mare Sra. G." : "Ex: Directora, mestres de cicle"} />
             </div>
             {esFamilies && (
               <div style={{ background:"#f0fdf4", border:"1.5px solid #86efac", borderRadius:11, padding:"13px 14px", marginBottom:14 }}>
                 <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#15803d", marginBottom:5 }}>
                   ⭐ Aspectes positius de l'alumne/a <span style={{ color:"#e11d48" }}>*</span>
                 </label>
-                <p style={{ fontSize:11, color:"#16a34a", marginBottom:8 }}>Camp obligatori. Inicieu sempre destacant els punts forts de l'alumne/a.</p>
                 <Txa value={form.aspectes} onChange={v => sf("aspectes", v)} rows={3}
-                  placeholder="Ex: Molt participatiu/va, gran esforç en matemàtiques, actitud excel·lent..." />
+                  placeholder="Ex: Molt participatiu/va, gran esforç en matemàtiques..." />
               </div>
             )}
             <div style={{ marginBottom:14 }}>
               <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:3 }}>Temes tractats</label>
-              <p style={{ fontSize:11, color:"#94a3b8", marginBottom:5 }}>Escriu lliurement les notes — la IA les redactarà en prosa formal.</p>
+              <p style={{ fontSize:11, color:"#94a3b8", marginBottom:5 }}>Escriu lliurement — la IA els redactarà en prosa formal.</p>
               <Txa value={form.temes} onChange={v => sf("temes", v)} rows={5}
-                placeholder="Ex: rendiment àrees, comportament, relació iguals, aspectes a millorar..." />
+                placeholder="Ex: rendiment àrees, comportament, relació iguals..." />
             </div>
             <div style={{ marginBottom:18 }}>
               <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:5 }}>Acords i decisions</label>
               <Txa value={form.acords} onChange={v => sf("acords", v)} rows={3}
-                placeholder="Ex: Es pactarà 15 min de lectura diària. Es revisarà en la propera reunió trimestral." />
+                placeholder="Ex: Es pactarà 15 min de lectura diària." />
             </div>
             <div style={{ background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:11, padding:"14px", marginBottom:18 }}>
               <SecLabel icon={ListChecks} label="Seguiment: Tasques Pendents" color="#64748b" />
@@ -1035,6 +990,7 @@ ${anonTasques.length ? `- Tasques pendents:\n${anonTasques.map((t,i) => `  ${i+1
       <ActaDocView text={result} onCopyModal={() => setCopyModal(true)}
         onDownload={() => downloadTxt(result, `acta_${tipus}_${form.data||"data"}`)} />
       {copyModal && <CopyModal text={result} onClose={() => setCopyModal(false)} />}
+      <IaBanner />
     </div>
   );
 }
@@ -1042,7 +998,6 @@ ${anonTasques.length ? `- Tasques pendents:\n${anonTasques.map((t,i) => `  ${i+1
 // ═══════════════════════════════════════════════════════════════════
 // ─── TAB 2: SdA ───────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════
-
 const AREES_SDC = [
   "Medi Natural, Social i Cultural", "Català", "Castellà", "Anglès",
   "Matemàtiques", "Artística", "Educació Física", "Valors Cívics i Ètics"
@@ -1057,18 +1012,46 @@ const CURSOS_SDC = [
   { id: "6è", label: "6è de Primària", cicle: "superior", edat: "11-12 anys" },
 ];
 
-// Helpers per parsejar les respostes del Creador SdA
 function tag_SDC(text, nom) {
   const re = new RegExp(`<${nom}>([\\s\\S]*?)<\\/${nom}>`, "i");
   const m = text.match(re);
   return m ? m[1].trim() : "";
 }
 
-function netejarMd_SDC(text) {
-  if (!text) return "";
-  return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1").replace(/__(.*?)__/g, "$1").trim();
+// ─── INDICADOR DE PASSOS ─────────────────────────────────────────
+function StepIndicator({ currentStep, steps }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
+      {steps.map((step, i) => {
+        const isActive = i === currentStep;
+        const isDone = i < currentStep;
+        return (
+          <div key={i} style={{ display:"flex", alignItems:"center", flex: i < steps.length - 1 ? 1 : "none" }}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+              <div style={{
+                width:32, height:32, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                fontWeight:700, fontSize:13, flexShrink:0,
+                background: isDone ? "#059669" : isActive ? "#1e3a8a" : "#e2e8f0",
+                color: isDone || isActive ? "white" : "#94a3b8",
+                border: isActive ? "3px solid #93c5fd" : "none",
+              }}>
+                {isDone ? "✓" : i + 1}
+              </div>
+              <span style={{ fontSize:10, fontWeight:600, color: isActive ? "#1e3a8a" : isDone ? "#059669" : "#94a3b8", whiteSpace:"nowrap" }}>
+                {step}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{ flex:1, height:2, background: isDone ? "#059669" : "#e2e8f0", margin:"0 4px", marginBottom:16 }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
+// ─── SdACreador amb flux per passos ──────────────────────────────
 function SdACreador({ onToast, onApiKeyError }) {
   const [titol, setTitol]         = usePersistedState("sda_titol", "");
   const [fil, setFil]             = usePersistedState("sda_fil", "");
@@ -1076,7 +1059,10 @@ function SdACreador({ onToast, onApiKeyError }) {
   const [curs, setCurs]           = usePersistedState("sda_curs", "3r");
   const [sessions, setSessions]   = usePersistedState("sda_sessions", "6");
   const [arees, setArees]         = usePersistedState("sda_arees", []);
-  const [data, setData]           = usePersistedState("sda_data", null);
+  const [step, setStep]           = usePersistedState("sda_step", 0);
+  const [marcData, setMarcData]   = usePersistedState("sda_marc_data", []);
+  const [objData, setObjData]     = usePersistedState("sda_obj_data", []);
+  const [finalData, setFinalData] = usePersistedState("sda_final_data", null);
   const [loading, setLoading]     = useState(false);
   const [progress, setProgress]   = useState("");
   const [error, setError]         = useState("");
@@ -1085,110 +1071,127 @@ function SdACreador({ onToast, onApiKeyError }) {
     prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]
   );
   const numSessions = Math.min(parseInt(sessions) || 6, 12);
+  const STEPS = ["Formulari", "Marc Curricular", "Objectius", "SdA Completa"];
 
-  async function generar() {
+  function resetCreador() {
+    setStep(0); setMarcData([]); setObjData([]); setFinalData(null); setError("");
+  }
+
+  function parseMarcBloc(raw) {
+    const marcBloc = tag_SDC(raw, "marc");
+    if (!marcBloc) return [];
+    return marcBloc.split("---").map(bloc => {
+      const lines = bloc.trim().split("\n").filter(l => l.trim());
+      const get = (...prefixes) => {
+        for (const p of prefixes) {
+          const l = lines.find(l => l.trim().toUpperCase().startsWith(p.toUpperCase()));
+          if (l) return l.replace(new RegExp("^" + p, "i"), "").replace(/^[:\s]+/, "").trim();
+        }
+        return "";
+      };
+      return {
+        ce: get("CE:", "COMPETÈNCIA:", "COMPETENCIA:"),
+        ca: get("CA:", "CRITERI:", "CRITERI D'AVALUACIÓ:"),
+        sabers: get("SABERS:", "SABERES:", "SABERS VINCULATS:")
+      };
+    }).filter(r => r.ce || r.ca);
+  }
+
+  function parseObjBloc(raw) {
+    const objBloc = tag_SDC(raw, "objectius");
+    if (!objBloc) return [];
+    return objBloc.split("---").map(bloc => {
+      const lines = bloc.trim().split("\n").filter(l => l.trim());
+      const get = (...prefixes) => {
+        for (const p of prefixes) {
+          const l = lines.find(l => l.trim().toUpperCase().startsWith(p.toUpperCase()));
+          if (l) return l.replace(new RegExp("^" + p, "i"), "").replace(/^[:\s]+/, "").trim();
+        }
+        return "";
+      };
+      return {
+        obj: get("OBJ:", "OBJECTIU:"),
+        ca: get("CA:"),
+        criteri: get("CRITERI:", "CRITERI D'AVALUACIÓ:"),
+        n1: get("N1:", "N1 SATISFACTORI:", "SATISFACTORI:"),
+        n2: get("N2:", "N2 NOTABLE:", "NOTABLE:"),
+        n3: get("N3:", "N3 EXCEL·LENT:", "EXCEL·LENT:", "EXCELLENT:")
+      };
+    }).filter(r => r.obj);
+  }
+
+  function parseActs(raw, tagNom) {
+    const bloc = tag_SDC(raw, tagNom);
+    if (!bloc) return [];
+    return bloc.split("---").map(b => {
+      const lines = b.trim().split("\n").filter(l => l.trim());
+      const get = (...prefixes) => {
+        for (const p of prefixes) {
+          const l = lines.find(l => l.trim().toUpperCase().startsWith(p.toUpperCase()));
+          if (l) return l.replace(new RegExp("^" + p, "i"), "").replace(/^[:\s]+/, "").trim();
+        }
+        return "";
+      };
+      return {
+        act: get("ACT:", "ACTIVITAT:", "NOM:") || lines[0] || "",
+        desc: get("DESC:", "DESCRIPCIÓ:", "DESENVOLUPAMENT:") || lines[1] || "",
+        agrupament: get("AGRUPAMENT:", "GRUP:"),
+        temps: get("TEMPS:", "DURADA:"),
+        materials: get("MATERIALS:", "RECURSOS:"),
+        avaluacio: get("AVALUACIO:", "AVALUACIÓ:", "INSTRUMENT:")
+      };
+    }).filter(a => a.act || a.desc);
+  }
+
+  // PAS 1: Generar Marc Curricular
+  async function generarMarc() {
     if (!titol || !fil || arees.length === 0) return;
-    setLoading(true); setError(""); setData(null);
-
+    setLoading(true); setError("");
     try {
       const cursObj = CURSOS_SDC.find(c => c.id === curs) || CURSOS_SDC[2];
-      const base = `SdA: "${titol}" | Fil conductor: "${fil}" | Curs: ${cursObj.label} (cicle ${cursObj.cicle}, ${cursObj.edat}) | ${trimestre} | ${numSessions} sessions | Àrees: ${arees.join(", ")}
+      setProgress("Generant marc curricular LOMLOE...");
+      const raw = await geminiSDC(`Ets expert LOMLOE primària Catalunya. Per la SdA "${titol}" (fil conductor: "${fil}") amb àrees: ${arees.join(", ")}, curs: ${cursObj.label} (${cursObj.edat}), genera el MARC COMPETENCIAL OFICIAL LOMLOE.
 
-IMPORTANT: Adapta TOT el contingut (vocabulari, complexitat, productes, activitats, criteris d'avaluació) al nivell de ${cursObj.label} (${cursObj.edat}). Les activitats han de ser apropiades per al cicle ${cursObj.cicle}.`;
-
-      const sessDesenv = numSessions - 2;
-
-      // Grup 1: Capçalera + Marc competencial (en paral·lel)
-      setProgress("Generant capçalera i marc competencial... (1/3)");
-      const [raw1, raw1b] = await Promise.all([
-        geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
-
-Genera EXACTAMENT aquest format d'etiquetes XML, amb contingut real:
-
-<ambit>àmbit principal (ex: Científic i Tecnològic, Comunicatiu i Artístic, etc.)</ambit>
-<justificacio>2-3 frases que justifiquen pedagògicament la SdA, contextualitzen el repte i expliquen la rellevància de l'aprenentatge</justificacio>
-<producte_final>descripció detallada del producte final que crearan els alumnes (ex: maqueta, vídeo explicatiu, exposició, llibre digital...)</producte_final>
-<metodologia>descripció de la metodologia (aprenentatge cooperatiu, indagació científica, ABP, etc.) amb detalls sobre l'organització</metodologia>
-`, 800),
-
-        geminiSDC(`Ets expert LOMLOE primària Catalunya. Per la SdA "${titol}" (fil: "${fil}") amb àrees: ${arees.join(", ")}, genera el MARC COMPETENCIAL OFICIAL LOMLOE.
-
-IMPORTANT: usa les competències específiques i criteris d'avaluació REALS del currículum LOMLOE català per a les àrees indicades. Genera ENTRE 3 I 5 ENTRADES, una per cada combinació rellevant àrea-competència.
+IMPORTANT: usa les competències específiques i criteris d'avaluació REALS del currículum LOMLOE català. Genera ENTRE 3 I 5 ENTRADES.
 
 FORMAT EXACTE (respecta els prefixos CE:, CA: i SABERS: a cada línia):
 
 <marc>
-CE: CE 2.2 (Medi): Plantejar-se preguntes sobre el món aplicant el pensament científic per interpretar fets del medi natural i social
-CA: CA 2.2.3: Dissenyar i realitzar experiments senzills, emprant instruments i dispositius adequats, per respondre les preguntes plantejades
-SABERS: Selecció de tècniques d'indagació adequades a l'objecte d'estudi. Utilització d'instruments senzills de mesura. Vocabulari científic bàsic. Treball cooperatiu en l'experimentació.
+CE: CE 2.2 (Medi): Plantejar-se preguntes sobre el món aplicant el pensament científic
+CA: CA 2.2.3: Dissenyar i realitzar experiments senzills per respondre preguntes plantejades
+SABERS: Selecció de tècniques d'indagació. Instruments de mesura. Vocabulari científic bàsic.
 ---
-CE: CE 1.2 (Català): Comprendre i interpretar textos orals i multimodals identificant el sentit general i la informació rellevant
-CA: CA 1.2.1: Comprendre textos orals senzills procedents de diversos àmbits i suports
-SABERS: Estratègies de comprensió oral. Vocabulari específic del tema treballat. Identificació de les idees principals.
+CE: CE 1.2 (Català): Comprendre textos orals i multimodals identificant la informació rellevant
+CA: CA 1.2.1: Comprendre textos orals senzills procedents de diversos àmbits
+SABERS: Estratègies de comprensió oral. Vocabulari específic. Identificació d'idees principals.
 </marc>
 
-Ara genera el MARC competencial REAL per la SdA "${titol}" amb les àrees ${arees.join(", ")}. Respecta exactament el format: cada entrada amb CE:, CA: i SABERS:, separades per "---". MÍNIM 3 ENTRADES.`, 1800),
-      ]);
+Genera el MARC competencial REAL per "${titol}" amb les àrees ${arees.join(", ")}. MÍNIM 3 ENTRADES, cadascuna amb CE:, CA: i SABERS:, separades per "---".`, 1800);
 
-      // Grup 2: Activitats inicials i síntesi
-      setProgress("Generant activitats inicials i de síntesi... (2/3)");
-      const raw3 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
+      const parsed = parseMarcBloc(raw);
+      if (parsed.length === 0) throw new Error("No s'ha pogut parsejar el marc curricular. Torna-ho a intentar.");
+      setMarcData(parsed);
+      setStep(1);
+    } catch (e) {
+      if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
+      setError(e.message || "Error desconegut");
+    }
+    setProgress(""); setLoading(false);
+  }
 
-Genera les activitats INICIALS (1a sessió) i de SÍNTESI (última sessió) per la SdA "${titol}".
+  // PAS 2: Generar Objectius
+  async function generarObjectius() {
+    setLoading(true); setError("");
+    try {
+      const cursObj = CURSOS_SDC.find(c => c.id === curs) || CURSOS_SDC[2];
+      setProgress("Generant objectius d'aprenentatge...");
+      const caList = marcData.map((r, i) => `${i+1}. ${r.ca}`).join("\n");
+      const raw = await geminiSDC(`Ets expert LOMLOE primària Catalunya. Per la SdA "${titol}", curs ${cursObj.label} (${cursObj.edat}):
 
-FORMAT EXACTE:
-<inicials>
-ACT: Activitat 1 - Sessió 1
-DESC: Introducció de la SdA a través d'una pregunta provocadora per activar coneixements previs.
-AGRUPAMENT: Gran grup - Aula
-TEMPS: 30 min
-MATERIALS: Pissarra digital, materials introductori
-AVALUACIO: Registre oral de coneixements previs
----
-ACT: Activitat 2 - Sessió 1
-DESC: Presentació de la SdA: objectius, producte final i rúbrica d'avaluació.
-AGRUPAMENT: Gran grup - Aula
-TEMPS: 30 min
-MATERIALS: Dossier de l'alumne, rúbrica
-AVALUACIO: Autoavaluació inicial
-</inicials>
-<sintesi>
-ACT: Activitat final - Sessió ${numSessions}
-DESC: Presentació del producte final, debat conjunt i avaluació.
-AGRUPAMENT: Individual i gran grup - Aula
-TEMPS: 60 min
-MATERIALS: Rúbrica d'autoavaluació, producte final
-AVALUACIO: Rúbrica d'avaluació i autoavaluació
-</sintesi>
-
-Ara genera les activitats INICIALS i de SÍNTESI REALS per "${titol}" amb el mateix format.`, 1400);
- // Parseig marc competencial
-      const marcBloc = tag_SDC(raw1b, "marc");
-      const marc = marcBloc ? marcBloc.split("---").map(bloc => {
-        const lines = bloc.trim().split("\n").filter(l => l.trim());
-        const get = (...prefixes) => {
-          for (const p of prefixes) {
-            const l = lines.find(l => l.trim().toUpperCase().startsWith(p.toUpperCase()));
-            if (l) return l.replace(new RegExp("^" + p, "i"), "").replace(/^[:\s]+/, "").trim();
-          }
-          return "";
-        };
-        return {
-          ce: get("CE:", "COMPETÈNCIA:", "COMPETENCIA:"),
-          ca: get("CA:", "CRITERI:", "CRITERI D'AVALUACIÓ:"),
-          sabers: get("SABERS:", "SABERES:", "SABERS VINCULATS:")
-        };
-      }).filter(r => r.ce || r.ca) : [];
-
-      // Generem objectius basats en els CA reals del marc
-      const caList = marc.map((r, i) => `${i+1}. ${r.ca}`).join("\n");
-      setProgress("Generant objectius d'aprenentatge... (2.5/3)");
-      const raw2 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
-
-Aquests són els Criteris d'Avaluació (CA) del marc competencial d'aquesta SdA:
+Aquests són els Criteris d'Avaluació (CA) del marc competencial:
 ${caList}
 
-Genera UN OBJECTIU D'APRENENTATGE per cadascun d'aquests ${marc.length} CA, en el mateix ordre i amb els mateixos números de CA.
+Genera UN O MÉS OBJECTIUS D'APRENENTATGE per cadascun d'aquests ${marcData.length} CA, en el mateix ordre. Total màxim: 6 objectius.
 IMPORTANT: omple TOTS els camps N1, N2, N3 amb text real i concret.
 
 Format EXACTE:
@@ -1208,101 +1211,112 @@ N2: Identifica les interaccions però no sempre les relaciona amb conseqüèncie
 N3: Identifica i relaciona amb precisió totes les interaccions
 </objectius>
 
-Genera exactament ${marc.length} objectius, un per cada CA llistat.`, 1800);
+Genera els objectius (mínim 1 per CA, màxim 6 en total).`, 1800);
 
-      // Grup 3: Desenvolupament — una activitat per sessió
-      setProgress("Generant sessions de desenvolupament... (3/3)");
+      const parsed = parseObjBloc(raw);
+      if (parsed.length === 0) throw new Error("No s'han pogut generar els objectius. Torna-ho a intentar.");
+      setObjData(parsed);
+      setStep(2);
+    } catch (e) {
+      if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
+      setError(e.message || "Error desconegut");
+    }
+    setProgress(""); setLoading(false);
+  }
+
+  // PAS 3: Generar SdA Completa
+  async function generarFinal() {
+    setLoading(true); setError("");
+    try {
+      const cursObj = CURSOS_SDC.find(c => c.id === curs) || CURSOS_SDC[2];
+      const base = `SdA: "${titol}" | Fil conductor: "${fil}" | Curs: ${cursObj.label} (${cursObj.edat}) | ${trimestre} | ${numSessions} sessions | Àrees: ${arees.join(", ")}`;
+      const sessDesenv = numSessions - 2;
+
+      setProgress("Generant capçalera i activitats inicials/síntesi... (1/2)");
+      const [raw1, raw3] = await Promise.all([
+        geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
+
+Genera EXACTAMENT aquest format:
+<ambit>àmbit principal (ex: Científic i Tecnològic, Comunicatiu i Artístic)</ambit>
+<justificacio>2-3 frases que justifiquen pedagògicament la SdA</justificacio>
+<producte_final>descripció detallada del producte final que crearan els alumnes</producte_final>
+<metodologia>descripció de la metodologia (ABP, cooperatiu, indagació, etc.)</metodologia>
+`, 800),
+
+        geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
+
+Genera les activitats INICIALS (1a sessió) i de SÍNTESI (última sessió).
+
+FORMAT EXACTE:
+<inicials>
+ACT: Activitat 1 - Sessió 1
+DESC: Introducció de la SdA, activació de coneixements previs amb pregunta provocadora.
+AGRUPAMENT: Gran grup - Aula
+TEMPS: 30 min
+MATERIALS: Pissarra digital
+AVALUACIO: Registre oral de coneixements previs
+---
+ACT: Activitat 2 - Sessió 1
+DESC: Presentació d'objectius, producte final i rúbrica d'avaluació.
+AGRUPAMENT: Gran grup - Aula
+TEMPS: 30 min
+MATERIALS: Dossier de l'alumne
+AVALUACIO: Autoavaluació inicial
+</inicials>
+<sintesi>
+ACT: Activitat final - Sessió ${numSessions}
+DESC: Presentació del producte final, debat conjunt i avaluació.
+AGRUPAMENT: Individual i gran grup
+TEMPS: 60 min
+MATERIALS: Rúbrica, producte final
+AVALUACIO: Rúbrica i autoavaluació
+</sintesi>
+
+Genera activitats REALS per "${titol}".`, 1400),
+      ]);
+
+      setProgress("Generant sessions de desenvolupament... (2/2)");
       const sessionsLlista = Array.from({length: sessDesenv}, (_, i) => `Sessió ${i + 2}`).join(", ");
       const raw4 = await geminiSDC(`Ets expert LOMLOE primària Catalunya. ${base}
 
-Genera exactament ${sessDesenv} activitats de DESENVOLUPAMENT, una per cada sessió: ${sessionsLlista}.
+Genera exactament ${sessDesenv} activitats de DESENVOLUPAMENT, una per sessió: ${sessionsLlista}.
+Els objectius d'aquesta SdA són: ${objData.map(o => o.obj).join("; ")}
 
 FORMAT EXACTE (separa cada activitat amb "---"):
 <desenvolupament>
 ACT: Activitat 3 - Sessió 2
-DESC: Descripció detallada de l'activitat.
+DESC: Descripció detallada alineada amb els objectius d'aprenentatge.
 AGRUPAMENT: Petit grup (4 alumnes) - Aula
 TEMPS: 60 min
 MATERIALS: Materials necessaris
 AVALUACIO: Instrument d'avaluació
 ---
 ACT: Activitat 4 - Sessió 3
-DESC: Descripció detallada de l'activitat.
+DESC: Descripció detallada.
 AGRUPAMENT: Petit grup - Aula
 TEMPS: 60 min
 MATERIALS: Materials necessaris
 AVALUACIO: Instrument d'avaluació
 </desenvolupament>
 
-Genera EXACTAMENT ${sessDesenv} activitats per "${titol}", una per cada sessió (${sessionsLlista}). Cada activitat diferent.`, 2000);
+Genera EXACTAMENT ${sessDesenv} activitats per "${titol}".`, 2000);
 
-      // Parseig objectius
-      const objBloc = tag_SDC(raw2, "objectius");
-      const objectius = objBloc ? objBloc.split("---").map(bloc => {
-      // Parseig objectius
-      const objBloc = tag_SDC(raw2, "objectius");
-      const objectius = objBloc ? objBloc.split("---").map(bloc => {
-        const lines = bloc.trim().split("\n").filter(l => l.trim());
-        const get = (...prefixes) => {
-          for (const p of prefixes) {
-            const l = lines.find(l => l.trim().toUpperCase().startsWith(p.toUpperCase()));
-            if (l) return l.replace(new RegExp("^" + p, "i"), "").replace(/^[:\s]+/, "").trim();
-          }
-          return "";
-        };
-        return {
-          obj: get("OBJ:", "OBJECTIU:"),
-          ca: get("CA:"),
-          criteri: get("CRITERI:", "CRITERI D'AVALUACIÓ:"),
-          n1: get("N1:", "N1 SATISFACTORI:", "SATISFACTORI:"),
-          n2: get("N2:", "N2 NOTABLE:", "NOTABLE:"),
-          n3: get("N3:", "N3 EXCEL·LENT:", "EXCEL·LENT:", "EXCELLENT:")
-        };
-      }).filter(r => r.obj) : [];
-
-      // Parseig activitats
-      function parseActs(raw, tagNom) {
-        const bloc = tag_SDC(raw, tagNom);
-        if (!bloc) return [];
-        return bloc.split("---").map(b => {
-          const lines = b.trim().split("\n").filter(l => l.trim());
-          const get = (...prefixes) => {
-            for (const p of prefixes) {
-              const l = lines.find(l => l.trim().toUpperCase().startsWith(p.toUpperCase()));
-              if (l) return l.replace(new RegExp("^" + p, "i"), "").replace(/^[:\s]+/, "").trim();
-            }
-            return "";
-          };
-          const act = get("ACT:", "ACTIVITAT:", "NOM:");
-          const desc = get("DESC:", "DESCRIPCIÓ:", "DESCRIPCION:", "ACTIVITAT:", "DESENVOLUPAMENT:");
-          return {
-            act: act || lines[0] || "",
-            desc: desc || lines[1] || "",
-            agrupament: get("AGRUPAMENT:", "AGRUPAMIENTO:", "GRUP:"),
-            temps: get("TEMPS:", "TIEMPO:", "DURADA:", "DURACIÓN:"),
-            materials: get("MATERIALS:", "MATERIAL:", "RECURSOS:"),
-            avaluacio: get("AVALUACIO:", "AVALUACIÓ:", "AVALUACION:", "INSTRUMENT:")
-          };
-        }).filter(a => a.act || a.desc);
-      }
-
-      setData({
+      setFinalData({
         titol, ambit: tag_SDC(raw1, "ambit"), trimestre, sessions: numSessions,
         curs: cursObj.label,
         justificacio: tag_SDC(raw1, "justificacio"),
         producte_final: tag_SDC(raw1, "producte_final"),
         metodologia: tag_SDC(raw1, "metodologia"),
-        marc,
-        objectius,
+        marc: marcData,
+        objectius: objData,
         acts_inicials: parseActs(raw3, "inicials"),
         acts_desenv: parseActs(raw4, "desenvolupament"),
         acts_sintesi: parseActs(raw3, "sintesi"),
       });
-
+      setStep(3);
     } catch (e) {
-      console.error("SdA error:", e);
       if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
-      setError(`${progress || "Error"}: ${e.message || "Error desconegut"}`);
+      setError(e.message || "Error desconegut");
     }
     setProgress(""); setLoading(false);
   }
@@ -1315,242 +1329,371 @@ Genera EXACTAMENT ${sessDesenv} activitats per "${titol}", una per cada sessió 
 
   return (
     <div>
-      <PrivacyBanner />
-      <div style={{ background:"white", border:"1.5px solid #e2e8f0", borderRadius:12, padding:"1.25rem", marginBottom:16, fontFamily:"system-ui" }}>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Títol de la SdA</label>
-          <input value={titol} onChange={e => setTitol(e.target.value)} placeholder="Ex: Els estats de la matèria"
-            style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none" }} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Fil conductor / Repte</label>
-          <textarea value={fil} onChange={e => setFil(e.target.value)} rows={2}
-            placeholder="Ex: Com podem descobrir les propietats de la matèria experimentant?"
-            style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none", resize:"vertical" }} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:8 }}>Curs</label>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(6, 1fr)", gap:6 }}>
-            {CURSOS_SDC.map(c => {
-              const sel = curs === c.id;
-              return (
-                <button key={c.id} onClick={() => setCurs(c.id)} style={{
-                  padding:"8px 4px", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"system-ui",
-                  border: sel ? "1.5px solid #1e3a8a" : "1.5px solid #e2e8f0",
-                  background: sel ? "#dbeafe" : "white",
-                  color: sel ? "#1e3a8a" : "#64748b",
-                }}>{c.id}</button>
-              );
-            })}
-          </div>
-          {curs && (
-            <p style={{ fontSize:11, color:"#64748b", marginTop:6 }}>
-              {CURSOS_SDC.find(c => c.id === curs)?.label} · Cicle {CURSOS_SDC.find(c => c.id === curs)?.cicle} · {CURSOS_SDC.find(c => c.id === curs)?.edat}
-            </p>
-          )}
-        </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-          <div>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Trimestre</label>
-            <select value={trimestre} onChange={e => setTrimestre(e.target.value)}
-              style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13 }}>
-              {TRIMESTRES_SDC.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Nº Sessions</label>
-            <input type="number" min="3" max="12" value={sessions} onChange={e => setSessions(e.target.value)}
-              style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none" }} />
-          </div>
-        </div>
-        <div style={{ marginBottom:16 }}>
-          <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:8 }}>Àrees curriculars</label>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-            {AREES_SDC.map(a => {
-              const sel = arees.includes(a);
-              return <button key={a} onClick={() => toggleArea(a)} style={{
-                padding:"6px 12px", borderRadius:20, cursor:"pointer", fontSize:12, fontWeight:600,
-                border:sel?"1.5px solid #1e3a8a":"1.5px solid #e2e8f0",
-                background:sel?"#dbeafe":"white", color:sel?"#1e3a8a":"#64748b",
-              }}>{a}</button>;
-            })}
-          </div>
-        </div>
-        <button onClick={generar} disabled={!canGen} style={{
-          width:"100%", padding:"12px", borderRadius:10, border:"none",
-          background:canGen?"#1e3a8a":"#e2e8f0", color:canGen?"white":"#94a3b8",
-          fontSize:14, fontWeight:700, cursor:canGen?"pointer":"not-allowed", fontFamily:"system-ui",
-        }}>
-          {loading ? `⏳ ${progress}` : "✨ Generar SdA Completa (Format LOMLOE)"}
-        </button>
-      </div>
+      <StepIndicator currentStep={step} steps={STEPS} />
 
       {error && (
-        <div style={{ background:"#fff5f5", border:"1.5px solid #fca5a5", borderRadius:10, padding:"12px 16px", marginBottom:16, fontSize:13, color:"#b91c1c", fontFamily:"system-ui" }}>
-          ⚠️ <strong>Error:</strong> {error}
+        <div style={{ background:"#fff5f5", border:"1.5px solid #fca5a5", borderRadius:10, padding:"12px 16px", marginBottom:16, fontSize:13, color:"#b91c1c", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span>⚠️ <strong>Error:</strong> {error}</span>
+          <button onClick={() => setError("")} style={{ background:"none", border:"none", cursor:"pointer", color:"#b91c1c", fontWeight:700, fontSize:16 }}>✕</button>
         </div>
       )}
 
-      {data && (
-        <div id="sda-doc" style={{ background:"white" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
-            <tbody>
-              <tr>
-                <td style={tdGrey}>Nº SdA</td>
-                <td style={tdStyle}>01</td>
-                <td style={tdGrey}>Àmbit</td>
-                <td style={tdStyle}>{data.ambit}</td>
-                <td style={tdGrey}>Àrea</td>
-                <td style={tdStyle}>{arees.join(", ")}</td>
-              </tr>
-              <tr>
-                <td style={tdGrey}>Curs</td>
-                <td style={tdStyle}>{data.curs}</td>
-                <td style={tdGrey}>Trimestre</td>
-                <td style={tdStyle}>{data.trimestre}</td>
-                <td style={tdGrey}>Nº Sessions</td>
-                <td style={tdStyle}>{data.sessions}</td>
-              </tr>
-              <tr>
-                <td style={tdGrey}>Títol</td>
-                <td colSpan={5} style={{ ...tdStyle, fontWeight:700, fontSize:14, color:"#1e3a8a" }}>{data.titol}</td>
-              </tr>
-              <tr>
-                <td style={tdGrey}>Justificació</td>
-                <td colSpan={5} style={tdStyle}>{data.justificacio}</td>
-              </tr>
-              <tr>
-                <td style={tdGrey}>Producte Final</td>
-                <td colSpan={5} style={tdStyle}>{data.producte_final}</td>
-              </tr>
-              <tr>
-                <td style={tdGrey}>Metodologia</td>
-                <td colSpan={5} style={tdStyle}>{data.metodologia}</td>
-              </tr>
-            </tbody>
-          </table>
+      {/* PAS 0: FORMULARI */}
+      {step === 0 && (
+        <div style={{ background:"white", border:"1.5px solid #e2e8f0", borderRadius:12, padding:"1.25rem", marginBottom:16 }}>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Títol de la SdA</label>
+            <input value={titol} onChange={e => setTitol(e.target.value)} placeholder="Ex: Els estats de la matèria"
+              style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none", boxSizing:"border-box" }} />
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Fil conductor / Repte</label>
+            <textarea value={fil} onChange={e => setFil(e.target.value)} rows={2}
+              placeholder="Ex: Com podem descobrir les propietats de la matèria experimentant?"
+              style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:8 }}>Curs</label>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(6, 1fr)", gap:6 }}>
+              {CURSOS_SDC.map(c => {
+                const sel = curs === c.id;
+                return (
+                  <button key={c.id} onClick={() => setCurs(c.id)} style={{
+                    padding:"8px 4px", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"system-ui",
+                    border: sel ? "1.5px solid #1e3a8a" : "1.5px solid #e2e8f0",
+                    background: sel ? "#dbeafe" : "white", color: sel ? "#1e3a8a" : "#64748b",
+                  }}>{c.id}</button>
+                );
+              })}
+            </div>
+            {curs && (
+              <p style={{ fontSize:11, color:"#64748b", marginTop:6 }}>
+                {CURSOS_SDC.find(c => c.id === curs)?.label} · Cicle {CURSOS_SDC.find(c => c.id === curs)?.cicle} · {CURSOS_SDC.find(c => c.id === curs)?.edat}
+              </p>
+            )}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Trimestre</label>
+              <select value={trimestre} onChange={e => setTrimestre(e.target.value)}
+                style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13 }}>
+                {TRIMESTRES_SDC.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Nº Sessions</label>
+              <input type="number" min="3" max="12" value={sessions} onChange={e => setSessions(e.target.value)}
+                style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none" }} />
+            </div>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#475569", marginBottom:8 }}>Àrees curriculars</label>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+              {AREES_SDC.map(a => {
+                const sel = arees.includes(a);
+                return <button key={a} onClick={() => toggleArea(a)} style={{
+                  padding:"6px 12px", borderRadius:20, cursor:"pointer", fontSize:12, fontWeight:600,
+                  border:sel?"1.5px solid #1e3a8a":"1.5px solid #e2e8f0",
+                  background:sel?"#dbeafe":"white", color:sel?"#1e3a8a":"#64748b",
+                }}>{a}</button>;
+              })}
+            </div>
+          </div>
+          <button onClick={generarMarc} disabled={!canGen} style={{
+            width:"100%", padding:"12px", borderRadius:10, border:"none",
+            background:canGen?"#1e3a8a":"#e2e8f0", color:canGen?"white":"#94a3b8",
+            fontSize:14, fontWeight:700, cursor:canGen?"pointer":"not-allowed", fontFamily:"system-ui",
+          }}>
+            {loading ? `⏳ ${progress}` : "1. Generar Marc Curricular →"}
+          </button>
+        </div>
+      )}
 
-          <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
-            <thead>
-              <tr>
+      {/* PAS 1: REVISIÓ MARC CURRICULAR */}
+      {step === 1 && (
+        <div>
+          <div style={{ background:"#eff6ff", border:"1.5px solid #93c5fd", borderRadius:12, padding:"14px 16px", marginBottom:16 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+              <Edit3 size={15} color="#1e3a8a" />
+              <span style={{ fontSize:13, fontWeight:700, color:"#1e3a8a" }}>Revisa el Marc Curricular</span>
+            </div>
+            <p style={{ fontSize:12, color:"#1e40af", margin:0, lineHeight:1.6 }}>
+              Comprova que les competències i criteris siguin correctes. Pots editar qualsevol camp. Quan estiguis satisfet/a, prem "Continuar".
+            </p>
+          </div>
+          <div style={{ background:"white", border:"1.5px solid #e2e8f0", borderRadius:12, padding:"1rem", marginBottom:16, overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Competència Específica (CE)</th>
+                  <th style={thStyle}>Criteri d'Avaluació (CA)</th>
+                  <th style={thStyle}>Sabers Vinculats</th>
+                  <th style={{ ...thStyle, width:40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {marcData.map((r, i) => (
+                  <tr key={i} style={{ background: i%2===0?"white":"#f8fafc" }}>
+                    <td style={tdStyle}>
+                      <textarea value={r.ce} rows={3}
+                        onChange={e => setMarcData(prev => prev.map((x, j) => j===i ? {...x, ce:e.target.value} : x))}
+                        style={{ width:"100%", border:"1px solid #e2e8f0", borderRadius:6, padding:"5px 7px", fontSize:11, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
+                    </td>
+                    <td style={tdStyle}>
+                      <textarea value={r.ca} rows={3}
+                        onChange={e => setMarcData(prev => prev.map((x, j) => j===i ? {...x, ca:e.target.value} : x))}
+                        style={{ width:"100%", border:"1px solid #e2e8f0", borderRadius:6, padding:"5px 7px", fontSize:11, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
+                    </td>
+                    <td style={tdStyle}>
+                      <textarea value={r.sabers} rows={3}
+                        onChange={e => setMarcData(prev => prev.map((x, j) => j===i ? {...x, sabers:e.target.value} : x))}
+                        style={{ width:"100%", border:"1px solid #e2e8f0", borderRadius:6, padding:"5px 7px", fontSize:11, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
+                    </td>
+                    <td style={{ ...tdStyle, textAlign:"center" }}>
+                      <button onClick={() => setMarcData(prev => prev.filter((_, j) => j !== i))}
+                        style={{ background:"none", border:"1px solid #fca5a5", borderRadius:6, padding:"3px 7px", cursor:"pointer", color:"#dc2626", fontSize:13 }}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button onClick={() => setMarcData(prev => [...prev, { ce:"", ca:"", sabers:"" }])}
+              style={{ marginTop:10, padding:"6px 14px", background:"#f1f5f9", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:12, cursor:"pointer", fontFamily:"system-ui" }}>
+              + Afegir fila
+            </button>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setStep(0)} style={{
+              padding:"11px 20px", borderRadius:10, border:"1.5px solid #e2e8f0",
+              background:"white", color:"#374151", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"system-ui",
+              display:"flex", alignItems:"center", gap:6
+            }}>
+              <ChevronLeft size={14} /> Tornar
+            </button>
+            <button onClick={generarObjectius} disabled={loading || marcData.length === 0} style={{
+              flex:1, padding:"12px", borderRadius:10, border:"none",
+              background: marcData.length > 0 ? "#1e3a8a" : "#e2e8f0",
+              color: marcData.length > 0 ? "white" : "#94a3b8",
+              fontSize:14, fontWeight:700, cursor: marcData.length > 0 ? "pointer" : "not-allowed", fontFamily:"system-ui",
+            }}>
+              {loading ? `⏳ ${progress}` : "2. Generar Objectius d'Aprenentatge →"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PAS 2: REVISIÓ OBJECTIUS */}
+      {step === 2 && (
+        <div>
+          <div style={{ background:"#eff6ff", border:"1.5px solid #93c5fd", borderRadius:12, padding:"14px 16px", marginBottom:16 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+              <Edit3 size={15} color="#1e3a8a" />
+              <span style={{ fontSize:13, fontWeight:700, color:"#1e3a8a" }}>Revisa els Objectius d'Aprenentatge</span>
+            </div>
+            <p style={{ fontSize:12, color:"#1e40af", margin:0, lineHeight:1.6 }}>
+              Comprova que els objectius i la gradació siguin adequats al curs. Pots editar-los. Quan estiguis satisfet/a, prem "Generar SdA Completa".
+            </p>
+          </div>
+          <div style={{ background:"white", border:"1.5px solid #e2e8f0", borderRadius:12, padding:"1rem", marginBottom:16, overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>CA</th>
+                  <th style={thStyle}>Objectiu</th>
+                  <th style={thStyle}>Criteri</th>
+                  <th style={{ ...thStyle, background:"#b45309" }}>N1 Satisfactori</th>
+                  <th style={{ ...thStyle, background:"#1565c0" }}>N2 Notable</th>
+                  <th style={{ ...thStyle, background:"#2e7d32" }}>N3 Excel·lent</th>
+                  <th style={{ ...thStyle, width:40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {objData.map((o, i) => (
+                  <tr key={i} style={{ background: i%2===0?"white":"#f8fafc" }}>
+                    <td style={{ ...tdStyle, width:"8%" }}>
+                      <input value={o.ca}
+                        onChange={e => setObjData(prev => prev.map((x, j) => j===i ? {...x, ca:e.target.value} : x))}
+                        style={{ width:"100%", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 6px", fontSize:11, fontFamily:"inherit", boxSizing:"border-box" }} />
+                    </td>
+                    {["obj","criteri","n1","n2","n3"].map(field => (
+                      <td key={field} style={{ ...tdStyle, background: field==="n1"?"#fffbeb":field==="n2"?"#eff6ff":field==="n3"?"#f0fdf4":"white" }}>
+                        <textarea value={o[field]} rows={2}
+                          onChange={e => setObjData(prev => prev.map((x, j) => j===i ? {...x, [field]:e.target.value} : x))}
+                          style={{ width:"100%", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 6px", fontSize:11, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
+                      </td>
+                    ))}
+                    <td style={{ ...tdStyle, textAlign:"center" }}>
+                      <button onClick={() => setObjData(prev => prev.filter((_, j) => j !== i))}
+                        style={{ background:"none", border:"1px solid #fca5a5", borderRadius:6, padding:"3px 7px", cursor:"pointer", color:"#dc2626", fontSize:13 }}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button onClick={() => setObjData(prev => [...prev, { obj:"", ca:"", criteri:"", n1:"", n2:"", n3:"" }])}
+              style={{ marginTop:10, padding:"6px 14px", background:"#f1f5f9", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:12, cursor:"pointer", fontFamily:"system-ui" }}>
+              + Afegir objectiu
+            </button>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setStep(1)} style={{
+              padding:"11px 20px", borderRadius:10, border:"1.5px solid #e2e8f0",
+              background:"white", color:"#374151", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"system-ui",
+              display:"flex", alignItems:"center", gap:6
+            }}>
+              <ChevronLeft size={14} /> Tornar
+            </button>
+            <button onClick={generarFinal} disabled={loading || objData.length === 0} style={{
+              flex:1, padding:"12px", borderRadius:10, border:"none",
+              background: objData.length > 0 ? "#059669" : "#e2e8f0",
+              color: objData.length > 0 ? "white" : "#94a3b8",
+              fontSize:14, fontWeight:700, cursor: objData.length > 0 ? "pointer" : "not-allowed", fontFamily:"system-ui",
+            }}>
+              {loading ? `⏳ ${progress}` : "3. Generar SdA Completa ✨"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PAS 3: RESULTAT FINAL */}
+      {step === 3 && finalData && (
+        <div>
+          <div style={{ background:"#f0fdf4", border:"1.5px solid #86efac", borderRadius:12, padding:"12px 16px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <CheckCircle2 size={16} color="#059669" />
+              <span style={{ fontSize:13, fontWeight:700, color:"#166534" }}>
+                SdA generada · {finalData.sessions} sessions · {finalData.marc.length} competències · {finalData.objectius.length} objectius
+              </span>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => {
+                const doc = document.getElementById("sda-doc");
+                if (!doc) return;
+                const win = window.open("", "_blank");
+                if (!win) { alert("El navegador ha bloquejat l'obertura. Permet finestres emergents."); return; }
+                const styles = `<style>@page{size:A4 landscape;margin:1cm}body{font-family:Calibri,Arial,sans-serif;font-size:9pt;margin:0;padding:10px;color:#1e293b}table{width:100%!important;border-collapse:collapse;margin-bottom:12px;page-break-inside:avoid}th{background-color:#1e3a8a!important;color:#fff!important;padding:5px 7px;border:1px solid #1e40af;font-weight:700;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}td{padding:5px 7px;border:1px solid #cbd5e1;vertical-align:top;font-size:9pt}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print{position:fixed;top:10px;right:10px;background:#1e3a8a;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700}</style>`;
+                win.document.write(`<!DOCTYPE html><html><head><meta charset='utf-8'><title>SdA - ${finalData.titol}</title>${styles}</head><body><button class='no-print' onclick='window.print()'>🖨️ Imprimir / PDF</button><h1>${finalData.titol}</h1>${doc.innerHTML}</body></html>`);
+                win.document.close();
+              }} style={{ padding:"8px 14px", background:"#1e3a8a", color:"white", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"system-ui" }}>
+                🖨️ PDF
+              </button>
+              <button onClick={resetCreador} style={{ padding:"8px 14px", background:"white", color:"#374151", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"system-ui" }}>
+                Nova SdA
+              </button>
+            </div>
+          </div>
+
+          <div id="sda-doc" style={{ background:"white" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
+              <tbody>
+                <tr>
+                  <td style={tdGrey}>Nº SdA</td><td style={tdStyle}>01</td>
+                  <td style={tdGrey}>Àmbit</td><td style={tdStyle}>{finalData.ambit}</td>
+                  <td style={tdGrey}>Àrees</td><td style={tdStyle}>{arees.join(", ")}</td>
+                </tr>
+                <tr>
+                  <td style={tdGrey}>Curs</td><td style={tdStyle}>{finalData.curs}</td>
+                  <td style={tdGrey}>Trimestre</td><td style={tdStyle}>{finalData.trimestre}</td>
+                  <td style={tdGrey}>Sessions</td><td style={tdStyle}>{finalData.sessions}</td>
+                </tr>
+                <tr>
+                  <td style={tdGrey}>Títol</td>
+                  <td colSpan={5} style={{ ...tdStyle, fontWeight:700, fontSize:14, color:"#1e3a8a" }}>{finalData.titol}</td>
+                </tr>
+                <tr><td style={tdGrey}>Fil conductor</td><td colSpan={5} style={tdStyle}>{fil}</td></tr>
+                <tr><td style={tdGrey}>Justificació</td><td colSpan={5} style={tdStyle}>{finalData.justificacio}</td></tr>
+                <tr><td style={tdGrey}>Producte Final</td><td colSpan={5} style={tdStyle}>{finalData.producte_final}</td></tr>
+                <tr><td style={tdGrey}>Metodologia</td><td colSpan={5} style={tdStyle}>{finalData.metodologia}</td></tr>
+              </tbody>
+            </table>
+
+            <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
+              <thead><tr>
                 <th style={thStyle}>Competència Específica (CE)</th>
                 <th style={thStyle}>Criteri d'Avaluació (CA)</th>
                 <th style={thStyle}>Sabers Vinculats</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.marc.map((r, i) => (
+              </tr></thead>
+              <tbody>{finalData.marc.map((r, i) => (
                 <tr key={i} style={{ background: i%2===0?"white":"#f8fafc" }}>
                   <td style={tdStyle}>{r.ce}</td>
                   <td style={tdStyle}>{r.ca}</td>
                   <td style={tdStyle}>{r.sabers}</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              ))}</tbody>
+            </table>
 
-          <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
-            <thead>
-              <tr>
+            <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
+              <thead><tr>
                 <th style={thStyle}>CA</th>
                 <th style={thStyle}>Objectiu d'Aprenentatge</th>
                 <th style={thStyle}>Criteri d'Avaluació</th>
                 <th style={{ ...thStyle, background:"#b45309" }}>N1 Satisfactori</th>
                 <th style={{ ...thStyle, background:"#1565c0" }}>N2 Notable</th>
                 <th style={{ ...thStyle, background:"#2e7d32" }}>N3 Excel·lent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.objectius.map((o, i) => (
+              </tr></thead>
+              <tbody>{finalData.objectius.map((o, i) => (
                 <tr key={i} style={{ background: i%2===0?"white":"#f8fafc" }}>
                   <td style={{ ...tdStyle, fontWeight:700, color:"#1e3a8a", width:"5%" }}>{o.ca}</td>
                   <td style={{ ...tdStyle, width:"18%" }}>{o.obj}</td>
-                  <td style={{ ...tdStyle, width:"20%", fontStyle:"italic", color:"#475569" }}>{o.criteri}</td>
+                  <td style={{ ...tdStyle, width:"18%", fontStyle:"italic", color:"#475569" }}>{o.criteri}</td>
                   <td style={{ ...tdStyle, background:"#fffbeb" }}>{o.n1}</td>
                   <td style={{ ...tdStyle, background:"#eff6ff" }}>{o.n2}</td>
                   <td style={{ ...tdStyle, background:"#f0fdf4" }}>{o.n3}</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              ))}</tbody>
+            </table>
 
-          <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
-            <thead>
-              <tr>
-                <th colSpan={6} style={{ ...thStyle, textAlign:"center", fontSize:13 }}>SEQÜÈNCIA D'ACTIVITATS</th>
-              </tr>
-              <tr>
-                <th style={{ ...thStyle, background:"#1e40af", width:"5%" }}>Fase</th>
-                <th style={{ ...thStyle, background:"#1e40af", width:"18%" }}>Activitat / Sessió</th>
-                <th style={{ ...thStyle, background:"#1e40af" }}>Desenvolupament</th>
-                <th style={{ ...thStyle, background:"#1e40af", width:"12%" }}>Agrupament</th>
-                <th style={{ ...thStyle, background:"#1e40af", width:"8%" }}>Temps</th>
-                <th style={{ ...thStyle, background:"#1e40af", width:"15%" }}>Avaluació</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.acts_inicials.map((a, i) => (
-                <tr key={`ini_${i}`} style={{ background:"#fefce8" }}>
-                  {i === 0 && <td rowSpan={data.acts_inicials.length} style={{ ...tdStyle, fontWeight:700, color:"#92400e", textAlign:"center", background:"#fef3c7", width:"5%" }}>Inicials</td>}
-                  <td style={{ ...tdStyle, fontWeight:700 }}>{a.act}</td>
-                  <td style={tdStyle}>{a.desc}</td>
-                  <td style={tdStyle}>{a.agrupament}</td>
-                  <td style={tdStyle}>{a.temps}</td>
-                  <td style={tdStyle}>{a.avaluacio}</td>
+            <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:16, fontSize:12 }}>
+              <thead>
+                <tr><th colSpan={6} style={{ ...thStyle, textAlign:"center", fontSize:13 }}>SEQÜÈNCIA D'ACTIVITATS</th></tr>
+                <tr>
+                  <th style={{ ...thStyle, background:"#1e40af", width:"5%" }}>Fase</th>
+                  <th style={{ ...thStyle, background:"#1e40af", width:"18%" }}>Activitat / Sessió</th>
+                  <th style={{ ...thStyle, background:"#1e40af" }}>Desenvolupament</th>
+                  <th style={{ ...thStyle, background:"#1e40af", width:"12%" }}>Agrupament</th>
+                  <th style={{ ...thStyle, background:"#1e40af", width:"8%" }}>Temps</th>
+                  <th style={{ ...thStyle, background:"#1e40af", width:"14%" }}>Avaluació</th>
                 </tr>
-              ))}
-              {data.acts_desenv.map((a, i) => (
-                <tr key={`dev_${i}`} style={{ background:"white" }}>
-                  {i === 0 && <td rowSpan={data.acts_desenv.length} style={{ ...tdStyle, fontWeight:700, color:"#1e3a8a", textAlign:"center", background:"#eff6ff", width:"5%" }}>Desenvol.</td>}
-                  <td style={{ ...tdStyle, fontWeight:700 }}>{a.act}</td>
-                  <td style={tdStyle}>{a.desc}</td>
-                  <td style={tdStyle}>{a.agrupament}</td>
-                  <td style={tdStyle}>{a.temps}</td>
-                  <td style={tdStyle}>{a.avaluacio}</td>
-                </tr>
-              ))}
-              {data.acts_sintesi.map((a, i) => (
-                <tr key={`sin_${i}`} style={{ background:"#f0fdf4" }}>
-                  {i === 0 && <td rowSpan={data.acts_sintesi.length} style={{ ...tdStyle, fontWeight:700, color:"#166534", textAlign:"center", background:"#dcfce7", width:"5%" }}>Síntesi</td>}
-                  <td style={{ ...tdStyle, fontWeight:700 }}>{a.act}</td>
-                  <td style={tdStyle}>{a.desc}</td>
-                  <td style={tdStyle}>{a.agrupament}</td>
-                  <td style={tdStyle}>{a.temps}</td>
-                  <td style={tdStyle}>{a.avaluacio}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ padding:"10px 14px", background:"#f0fdf4", borderRadius:8, fontSize:12, color:"#166534", fontFamily:"system-ui", marginTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span>✅ SdA generada · {data.sessions} sessions · {data.marc.length} competències · {data.objectius.length} objectius</span>
-            <button onClick={() => {
-              const doc = document.getElementById("sda-doc");
-              if (!doc) return;
-              const win = window.open("", "_blank");
-              if (!win) { alert("El navegador ha bloquejat l'obertura. Permet finestres emergents i torna-ho a provar."); return; }
-              const styles = "<style>" +
-                "@page { size: A4 landscape; margin: 1cm; }" +
-                "body { font-family: Calibri, Arial, sans-serif; font-size: 9pt; margin: 0; padding: 10px; color: #1e293b; }" +
-                "h1 { font-size: 16pt; color: #1e3a8a; margin-bottom: 10px; border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; }" +
-                "table { width: 100% !important; border-collapse: collapse; margin-bottom: 12px; page-break-inside: avoid; }" +
-                "th { background-color: #1e3a8a !important; color: #ffffff !important; padding: 5px 7px; border: 1px solid #1e40af; font-weight: bold; text-align: left; font-size: 9pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }" +
-                "td { padding: 5px 7px; border: 1px solid #cbd5e1; vertical-align: top; font-size: 9pt; }" +
-                "* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }" +
-                "@media print { .no-print { display: none; } }" +
-                ".no-print { position: fixed; top: 10px; right: 10px; background: #1e3a8a; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }" +
-                "</style>";
-              win.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>SdA - " + data.titol + "</title>" + styles + "</head><body>" +
-                "<button class='no-print' onclick='window.print()'>🖨️ Imprimir / Guardar PDF</button>" +
-                "<h1>" + data.titol + "</h1>" + doc.innerHTML + "</body></html>");
-              win.document.close();
-            }} style={{ padding:"8px 16px", background:"#1e3a8a", color:"white", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"system-ui" }}>
-              🖨️ Imprimir / PDF
-            </button>
+              </thead>
+              <tbody>
+                {finalData.acts_inicials.map((a, i) => (
+                  <tr key={`ini_${i}`} style={{ background:"#fefce8" }}>
+                    {i === 0 && <td rowSpan={finalData.acts_inicials.length} style={{ ...tdStyle, fontWeight:700, color:"#92400e", textAlign:"center", background:"#fef3c7", width:"5%" }}>Inicials</td>}
+                    <td style={{ ...tdStyle, fontWeight:700 }}>{a.act}</td>
+                    <td style={tdStyle}>{a.desc}</td>
+                    <td style={tdStyle}>{a.agrupament}</td>
+                    <td style={tdStyle}>{a.temps}</td>
+                    <td style={tdStyle}>{a.avaluacio}</td>
+                  </tr>
+                ))}
+                {finalData.acts_desenv.map((a, i) => (
+                  <tr key={`dev_${i}`} style={{ background:"white" }}>
+                    {i === 0 && <td rowSpan={finalData.acts_desenv.length} style={{ ...tdStyle, fontWeight:700, color:"#1e3a8a", textAlign:"center", background:"#eff6ff", width:"5%" }}>Desenvol.</td>}
+                    <td style={{ ...tdStyle, fontWeight:700 }}>{a.act}</td>
+                    <td style={tdStyle}>{a.desc}</td>
+                    <td style={tdStyle}>{a.agrupament}</td>
+                    <td style={tdStyle}>{a.temps}</td>
+                    <td style={tdStyle}>{a.avaluacio}</td>
+                  </tr>
+                ))}
+                {finalData.acts_sintesi.map((a, i) => (
+                  <tr key={`sin_${i}`} style={{ background:"#f0fdf4" }}>
+                    {i === 0 && <td rowSpan={finalData.acts_sintesi.length} style={{ ...tdStyle, fontWeight:700, color:"#166534", textAlign:"center", background:"#dcfce7", width:"5%" }}>Síntesi</td>}
+                    <td style={{ ...tdStyle, fontWeight:700 }}>{a.act}</td>
+                    <td style={tdStyle}>{a.desc}</td>
+                    <td style={tdStyle}>{a.agrupament}</td>
+                    <td style={tdStyle}>{a.temps}</td>
+                    <td style={tdStyle}>{a.avaluacio}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          <IaBanner />
         </div>
       )}
+
+      {loading && <Loading text={progress || "La IA està generant contingut..."} />}
     </div>
   );
 }
@@ -1579,12 +1722,11 @@ function SdAArquitec({ onToast, onApiKeyError }) {
       <div style={{ background:"white", border:"1.5px solid #7dd3fc", borderRadius:14, padding:"1.25rem", marginBottom:16, borderTop:"4px solid #0284c7" }}>
         <SecLabel icon={Blocks} label="Estructura els teus materials en format SdA oficial" color="#0284c7" />
         <p style={{ fontSize:13, color:"#64748b", marginBottom:14, lineHeight:1.6 }}>
-          Enganxa qualsevol descripció d'activitat, unitat didàctica o notes de classe. La IA les estructurarà automàticament en el format oficial LOMLOE amb tots els apartats.
+          Enganxa qualsevol descripció d'activitat, unitat didàctica o notes de classe. La IA les estructurarà en el format oficial LOMLOE.
         </p>
         <div style={{ marginBottom:14 }}>
           <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:5 }}>Material existent</label>
-          <Txa value={text} onChange={setText} rows={10}
-            placeholder="Enganxa aquí la sessió, activitat o fragment que vols estructurar com a SdA..." />
+          <Txa value={text} onChange={setText} rows={10} placeholder="Enganxa aquí la sessió, activitat o fragment que vols estructurar com a SdA..." />
         </div>
         <Btn variant="primary" full onClick={generar} disabled={loading || !text}>
           {loading ? <><Spinner /> Estructurant en format LOMLOE...</> : <><Wand2 size={14} /> Estructurar com a SdA Oficial LOMLOE</>}
@@ -1594,6 +1736,7 @@ function SdAArquitec({ onToast, onApiKeyError }) {
       <SdADocView data={data} onCopyModal={() => setCopyModal(true)}
         onDownload={() => downloadTxt(sdaToText(data), "sda_arquitecte")} />
       {copyModal && data && <CopyModal text={sdaToText(data)} onClose={() => setCopyModal(false)} />}
+      <IaBanner />
     </div>
   );
 }
@@ -1609,8 +1752,8 @@ function SdADUA({ onToast, onApiKeyError }) {
     setLoading(true); setResult("");
     try {
       const res = await gemini(
-        `Ets especialista en Disseny Universal per a l'Aprenentatge (DUA) i educació inclusiva a Catalunya. Adaptes continguts educatius aplicant les tres xarxes del DUA: Reconeixement (Representació), Estratègica (Acció i Expressió) i Afectiva (Implicació). Escrius en català acadèmic professional i proporciones mesures concretes i directament aplicables a l'aula.`,
-        `Adapta el contingut educatiu següent aplicant principis DUA per a alumnat amb: ${necessitat}\n\nCONTINGUT ORIGINAL:\n${contingut}\n\nGenera un document estructurat amb:\n\n## ANÀLISI DE BARRERES D'APRENENTATGE\nIdentifica les barreres principals per a alumnat amb ${necessitat}.\n\n## MESURES DE REPRESENTACIÓ (Xarxa de Reconeixement)\nAdapta com es presenta la informació.\n\n## MESURES D'ACCIÓ I EXPRESSIÓ (Xarxa Estratègica)\nAdapta com l'alumnat demostra l'aprenentatge.\n\n## MESURES D'IMPLICACIÓ (Xarxa Afectiva)\nAdapta la motivació i l'autoregulació.\n\n## ACTIVITATS ADAPTADES\nReformula les activitats principals amb les adaptacions concretes.\n\n## MATERIALS I RECURSOS ESPECÍFICS\nLlista materials i recursos recomanats per a ${necessitat}.\n\n## INDICADORS D'ASSOLIMENT ADAPTATS\nCriteris d'avaluació ajustats a les capacitats de l'alumnat.`,
+        `Ets especialista en Disseny Universal per a l'Aprenentatge (DUA) i educació inclusiva a Catalunya. Adaptes continguts educatius aplicant les tres xarxes del DUA. Escrius en català acadèmic professional.`,
+        `Adapta el contingut educatiu següent aplicant principis DUA per a alumnat amb: ${necessitat}\n\nCONTINGUT ORIGINAL:\n${contingut}\n\nGenera un document estructurat amb:\n\n## ANÀLISI DE BARRERES\nIdentifica les barreres principals.\n\n## MESURES DE REPRESENTACIÓ (Xarxa de Reconeixement)\nAdapta com es presenta la informació.\n\n## MESURES D'ACCIÓ I EXPRESSIÓ (Xarxa Estratègica)\nAdapta com l'alumnat demostra l'aprenentatge.\n\n## MESURES D'IMPLICACIÓ (Xarxa Afectiva)\nAdapta la motivació i l'autoregulació.\n\n## ACTIVITATS ADAPTADES\nReformula les activitats amb adaptacions concretes.\n\n## MATERIALS ESPECÍFICS\nLlista materials recomanats.\n\n## INDICADORS D'ASSOLIMENT ADAPTATS\nCriteris d'avaluació ajustats.`,
         2000
       );
       setResult(res);
@@ -1625,9 +1768,6 @@ function SdADUA({ onToast, onApiKeyError }) {
     <div>
       <div style={{ background:"white", border:"1.5px solid #fda4af", borderRadius:14, padding:"1.25rem", marginBottom:16, borderTop:"4px solid #e11d48" }}>
         <SecLabel icon={Accessibility} label="Adaptació DUA per a la Inclusió" color="#e11d48" />
-        <p style={{ fontSize:13, color:"#64748b", marginBottom:14, lineHeight:1.6 }}>
-          Enganxa una part de la SdA o una activitat concreta i selecciona la necessitat de l'alumnat. La IA reescriurà el contingut aplicant les tres xarxes del DUA.
-        </p>
         <div style={{ marginBottom:14 }}>
           <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:6 }}>Necessitat específica</label>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
@@ -1637,24 +1777,23 @@ function SdADUA({ onToast, onApiKeyError }) {
                 <button key={n} onClick={() => setNecessitat(n)}
                   style={{ padding:"5px 11px", borderRadius:20, cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit",
                     border:sel ? "1.5px solid #e11d48" : "1.5px solid #e2e8f0",
-                    background:sel ? "#ffe4e6" : "white", color:sel ? "#9f1239" : "#64748b", transition:"all 0.13s" }}>
+                    background:sel ? "#ffe4e6" : "white", color:sel ? "#9f1239" : "#64748b" }}>
                   {n}
                 </button>
               );
             })}
           </div>
-          <Inp value={necessitat} onChange={setNecessitat} placeholder="O descriu la necessitat específica de l'alumnat..." />
+          <Inp value={necessitat} onChange={setNecessitat} placeholder="O descriu la necessitat específica..." />
         </div>
         <div style={{ marginBottom:18 }}>
           <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:3 }}>Contingut a adaptar</label>
-          <Txa value={contingut} onChange={setContingut} rows={8}
-            placeholder="Enganxa aquí la sessió, activitat o fragment de la SdA que vols adaptar..." />
+          <Txa value={contingut} onChange={setContingut} rows={8} placeholder="Enganxa aquí la sessió o activitat que vols adaptar..." />
         </div>
         <Btn variant="primary" full onClick={generar} disabled={loading || !contingut || !necessitat}>
           {loading ? <><Spinner /> Aplicant mesures DUA...</> : <><Accessibility size={14} /> Generar Adaptació DUA</>}
         </Btn>
       </div>
-      {loading && <Loading text="Aplicant les tres xarxes DUA i generant adaptació inclusiva..." />}
+      {loading && <Loading text="Aplicant les tres xarxes DUA..." />}
       {result && (
         <div style={{ marginTop:16 }}>
           <DocActionBar onCopy={() => setCopyModal(true)} onDownload={() => downloadTxt(result, `dua_${necessitat}`)} />
@@ -1662,10 +1801,7 @@ function SdADUA({ onToast, onApiKeyError }) {
             <div style={{ background:"white", margin:"0 auto", maxWidth:720, padding:"40px 48px",
               boxShadow:"0 4px 24px rgba(0,0,0,0.10)", borderRadius:4, fontFamily:"'Georgia','Times New Roman',serif" }}>
               <div style={{ borderBottom:"3px solid #e11d48", paddingBottom:12, marginBottom:20 }}>
-                <div style={{ fontSize:9, fontWeight:700, color:"#94a3b8", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:2 }}>
-                  Disseny Universal per a l'Aprenentatge (DUA) · Adaptació Inclusiva
-                </div>
-                <div style={{ fontSize:14, fontWeight:700, color:"#881337" }}>Adaptació per a: {necessitat}</div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#881337" }}>Adaptació DUA per a: {necessitat}</div>
               </div>
               <div style={{ fontSize:13, lineHeight:1.9, whiteSpace:"pre-wrap", color:"#1e293b" }}>{result}</div>
             </div>
@@ -1673,6 +1809,7 @@ function SdADUA({ onToast, onApiKeyError }) {
           {copyModal && <CopyModal text={result} onClose={() => setCopyModal(false)} />}
         </div>
       )}
+      <IaBanner />
     </div>
   );
 }
@@ -1711,11 +1848,9 @@ function SdATab({ onToast, onApiKeyError }) {
   );
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
 // ─── TAB 3: INFORMES D'AVALUACIÓ ─────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════
-
 function MobCard({ title, children }) {
   return (
     <div style={{ background:"white", borderRadius:12, padding:"1rem", boxShadow:"0 1px 6px rgba(0,0,0,0.07)", marginBottom:"0.75rem" }}>
@@ -1725,10 +1860,10 @@ function MobCard({ title, children }) {
   );
 }
 
-function MobSelBtn({ active, color, onClick, children, left }) {
+function MobSelBtn({ active, color, onClick, children }) {
   return (
     <button onClick={onClick} style={{
-      width:"100%", padding:"0.7rem 1rem", borderRadius:8, textAlign: left ? "left" : "center",
+      width:"100%", padding:"0.7rem 1rem", borderRadius:8, textAlign:"center",
       border:`2px solid ${active ? color : "#e0e0e0"}`,
       background: active ? color + "18" : "white",
       color: active ? color : "#444",
@@ -1758,10 +1893,7 @@ function CriteriRow({ label, value, onChange, onDelete }) {
           {VALORACIONS.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
         {onDelete && (
-          <button onClick={onDelete} title="Eliminar criteri"
-            style={{ background:"none", border:"none", color:"#e57373", fontSize:"1rem", cursor:"pointer", padding:"0 2px", lineHeight:1 }}>
-            ✕
-          </button>
+          <button onClick={onDelete} style={{ background:"none", border:"none", color:"#e57373", fontSize:"1rem", cursor:"pointer", padding:"0 2px" }}>✕</button>
         )}
       </div>
     </div>
@@ -1780,52 +1912,43 @@ const TABS_INF = [
 ];
 
 function InformesTab({ onToast, onApiKeyError }) {
-  const [tab, setTab]             = usePersistedState("inf_tab", "config");
-  const [trimestre, setTrimestre] = usePersistedState("inf_trimestre", null);
-  const [curs, setCurs]           = usePersistedState("inf_curs", "");
-  const [arees, setArees]         = usePersistedState("inf_arees", []);
+  const [tab, setTab]               = usePersistedState("inf_tab", "config");
+  const [trimestre, setTrimestre]   = usePersistedState("inf_trimestre", null);
+  const [curs, setCurs]             = usePersistedState("inf_curs", "");
+  const [arees, setArees]           = usePersistedState("inf_arees", []);
   const [areaActiva, setAreaActiva] = usePersistedState("inf_areaActiva", null);
-  const [centre, setCentre]       = usePersistedState("inf_centre", "");
-  const [tutor, setTutor]         = usePersistedState("inf_tutor", "");
-  const [alumnes, setAlumnes]     = usePersistedState("inf_alumnes", []);
+  const [centre, setCentre]         = usePersistedState("inf_centre", "");
+  const [tutor, setTutor]           = usePersistedState("inf_tutor", "");
+  const [alumnes, setAlumnes]       = usePersistedState("inf_alumnes", []);
   const [criterisPerArea, setCriterisPerArea] = usePersistedState("inf_criteris", {});
-  // ▼ NOVA: criteris del Comentari General editables
   const [criterisGeneral, setCriterisGeneral] = usePersistedState("inf_criterisGeneral", CRITERIS_GENERAL_INF_DEFAULT);
   const [valoracions, setValorations]           = usePersistedState("inf_valoracions", {});
   const [comentaris, setComentaris]             = usePersistedState("inf_comentaris", {});
   const [comentarisGeneral, setComentarisGeneral] = usePersistedState("inf_comentGen", {});
   const [alumneActiu, setAlumneActiu]           = usePersistedState("inf_alumneActiu", 0);
-
-  const [nomInput, setNomInput]   = useState("");
-  const [nomsBloc, setNomsBloc]   = useState("");
+  const [nomInput, setNomInput]     = useState("");
+  const [nomsBloc, setNomsBloc]     = useState("");
   const [showImport, setShowImport] = useState(false);
   const [nouCriteri, setNouCriteri] = useState("");
   const [nouCriteriGeneral, setNouCriteriGeneral] = useState("");
-  const [generant, setGenerant]   = useState({});
-  const [copyModal, setCopyModal] = useState(false);
+  const [generant, setGenerant]     = useState({});
+  const [copyModal, setCopyModal]   = useState(false);
   const [textExport, setTextExport] = useState("");
 
   const trimestreObj = TRIMESTRES_INF.find(t => t.id === trimestre);
   const configOk     = trimestre && curs && arees.length > 0;
   const graellaOk    = configOk && alumnes.length > 0;
-
-  const areesSelObj = AREES_INF.filter(a => arees.includes(a.id));
+  const areesSelObj  = AREES_INF.filter(a => arees.includes(a.id));
   const areaActivaObj = AREES_INF.find(a => a.id === areaActiva);
-  const esGeneral = areaActiva === "general";
+  const esGeneral    = areaActiva === "general";
 
   function toggleArea(id) {
-    setArees(prev => {
-      if (prev.includes(id)) return prev.filter(x => x !== id);
-      return [...prev, id];
-    });
+    setArees(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
-
-  // ▼ MILLORA 5: Eliminar àrea seleccionada
   function eliminarArea(id) {
     setArees(prev => prev.filter(x => x !== id));
     if (areaActiva === id) setAreaActiva(null);
   }
-
   function aplicarConfig() {
     const cicle = getCicle(curs);
     const nousCriteris = {};
@@ -1837,20 +1960,17 @@ function InformesTab({ onToast, onApiKeyError }) {
     setAreaActiva(arees[0]);
     setTab("graella");
   }
-
   function afegirAlumne() {
     const nom = nomInput.trim();
     if (!nom) return;
     setAlumnes(a => [...a, nom]);
     setNomInput("");
   }
-
   function importarAlumnes() {
     const noms = nomsBloc.split("\n").map(n => n.trim()).filter(Boolean);
     setAlumnes(a => { const ex = new Set(a); return [...a, ...noms.filter(n => !ex.has(n))]; });
     setNomsBloc(""); setShowImport(false);
   }
-
   function eliminarAlumne(i) {
     setAlumnes(al => al.filter((_, idx) => idx !== i));
     const reindex = obj => {
@@ -1862,20 +1982,11 @@ function InformesTab({ onToast, onApiKeyError }) {
       });
       return nou;
     };
-    setValorations(v => {
-      const nou = {};
-      Object.keys(v).forEach(aId => { nou[aId] = reindex(v[aId] || {}); });
-      return nou;
-    });
-    setComentaris(c => {
-      const nou = {};
-      Object.keys(c).forEach(aId => { nou[aId] = reindex(c[aId] || {}); });
-      return nou;
-    });
+    setValorations(v => { const nou = {}; Object.keys(v).forEach(aId => { nou[aId] = reindex(v[aId] || {}); }); return nou; });
+    setComentaris(c => { const nou = {}; Object.keys(c).forEach(aId => { nou[aId] = reindex(c[aId] || {}); }); return nou; });
     setComentarisGeneral(reindex);
     if (alumneActiu >= i && alumneActiu > 0) setAlumneActiu(a => a - 1);
   }
-
   function afegirCriteri() {
     const c = nouCriteri.trim();
     if (!c || !areaActiva || esGeneral) return;
@@ -1883,68 +1994,41 @@ function InformesTab({ onToast, onApiKeyError }) {
     setCriterisPerArea(prev => ({ ...prev, [areaActiva]: [...(prev[areaActiva] || []), c] }));
     setNouCriteri("");
   }
-
   function eliminarCriteri(i) {
     setCriterisPerArea(prev => ({ ...prev, [areaActiva]: (prev[areaActiva] || []).filter((_, idx) => idx !== i) }));
   }
-
-  // ▼ MILLORA 4: Criteris Comentari General editables
   function afegirCriteriGeneral() {
     const c = nouCriteriGeneral.trim();
     if (!c || criterisGeneral.includes(c)) return;
     setCriterisGeneral(prev => [...prev, c]);
     setNouCriteriGeneral("");
   }
-
   function eliminarCriteriGeneral(i) {
     setCriterisGeneral(prev => prev.filter((_, idx) => idx !== i));
   }
-
   function setVal(aId, ai, ci, val) {
-    setValorations(v => ({
-      ...v,
-      [aId]: { ...(v[aId] || {}), [ai]: { ...((v[aId] || {})[ai] || {}), [ci]: val } }
-    }));
+    setValorations(v => ({ ...v, [aId]: { ...(v[aId] || {}), [ai]: { ...((v[aId] || {})[ai] || {}), [ci]: val } } }));
   }
-
   function setValG(ai, ci, val) {
     setComentarisGeneral(c => ({ ...c, [`g_${ai}_${ci}`]: val }));
   }
-
-  function getValG(ai, ci) {
-    return comentarisGeneral[`g_${ai}_${ci}`] || null;
-  }
+  function getValG(ai, ci) { return comentarisGeneral[`g_${ai}_${ci}`] || null; }
 
   function llegenda() {
-    return `DEFINICIONS EXACTES:
-- NA = No ha assolit els objectius. Dificultats clares.
-- AS = Assoliment suficient. Necessita ajuda. NO és un bon resultat.
-- AN = Assoliment notable. Va bé però sense excel·lir.
-- AE = Assoliment excel·lent. Domini total.
-IMPORTANT: AE > AN > AS > NA.`;
+    return `DEFINICIONS EXACTES:\n- NA = No ha assolit els objectius.\n- AS = Assoliment suficient. Necessita ajuda.\n- AN = Assoliment notable.\n- AE = Assoliment excel·lent.\nIMPORTANT: AE > AN > AS > NA.`;
   }
 
   function buildPromptArea(aId, ai) {
-    const aObj   = AREES_INF.find(a => a.id === aId);
-    const crit   = criterisPerArea[aId] || [];
-    const vals   = (valoracions[aId] || {})[ai] || {};
+    const aObj  = AREES_INF.find(a => a.id === aId);
+    const crit  = criterisPerArea[aId] || [];
+    const vals  = (valoracions[aId] || {})[ai] || {};
     const detall = crit.map((c, ci) => `- ${c}: ${vals[ci] || "sense valorar"}`).join("\n");
-    return `Ets un mestre de primària que redacta informes d'avaluació en català.
-Escriu un comentari breu (3-4 frases) per a l'alumne/a sobre l'àrea de ${aObj?.label}, curs ${curs}, ${trimestreObj?.label}.
-${llegenda()}
-VALORACIONS:
-${detall}
-FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Paràgraf continu. Sense sigles NA/AS/AN/AE.`;
+    return `Ets un mestre de primària que redacta informes d'avaluació en català.\nEscriu un comentari breu (3-4 frases) per a l'alumne/a sobre l'àrea de ${aObj?.label}, curs ${curs}, ${trimestreObj?.label}.\n${llegenda()}\nVALORACIONS:\n${detall}\nFORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Paràgraf continu. Sense sigles NA/AS/AN/AE.`;
   }
 
   function buildPromptGeneral(ai) {
     const detall = criterisGeneral.map((c, ci) => `- ${c}: ${getValG(ai, ci) || "sense valorar"}`).join("\n");
-    return `Ets un mestre de primària que redacta informes d'avaluació en català.
-Escriu un comentari general breu (3-4 frases) sobre l'actitud i el comportament de l'alumne/a, curs ${curs}, ${trimestreObj?.label}.
-${llegenda()}
-VALORACIONS:
-${detall}
-FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Paràgraf continu. Sense sigles.`;
+    return `Ets un mestre de primària que redacta informes d'avaluació en català.\nEscriu un comentari general breu (3-4 frases) sobre l'actitud i el comportament de l'alumne/a, curs ${curs}, ${trimestreObj?.label}.\n${llegenda()}\nVALORACIONS:\n${detall}\nFORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Paràgraf continu. Sense sigles.`;
   }
 
   function afegirNom(nomReal, text) {
@@ -1972,9 +2056,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
     setGenerant(g => ({ ...g, [key]: false }));
   }
 
-  // ▼ BUG FIX "Generar tots": usem un enfocament seqüencial amb referències estables
   async function generarTots() {
-    const totalOps = alumnes.length * arees.length;
     let done = 0;
     for (let ai = 0; ai < alumnes.length; ai++) {
       for (const aId of arees) {
@@ -2011,9 +2093,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
         }
         const crit = criterisPerArea[aId] || [];
         const vals = (valoracions[aId] || {})[ai] || {};
-        const resumArea = crit.map((c, ci) => {
-          const v = vals[ci]; return v ? `  ${c}: ${v}` : null;
-        }).filter(Boolean).join("\n");
+        const resumArea = crit.map((c, ci) => { const v = vals[ci]; return v ? `  ${c}: ${v}` : null; }).filter(Boolean).join("\n");
         return `── ${aObj?.icon} ${aObj?.label} ──\n${resumArea || "  (sense valorar)"}\n${(comentaris[aId] || {})[ai] || "(sense comentari)"}`;
       }).join("\n\n");
       return `═══════════════════════════════════\nALUMNE/A: ${alumne}\n${trimestreObj?.label} · ${curs}\n═══════════════════════════════════\n\n${seccions}\n`;
@@ -2024,7 +2104,6 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto" }}>
-      {/* Sub-tabs */}
       <div style={{ display:"flex", background:"white", borderRadius:12, overflow:"hidden", border:"1.5px solid #e2e8f0", marginBottom:"1rem" }}>
         {TABS_INF.map(t => {
           const actiu    = tab === t.id;
@@ -2035,8 +2114,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
               background: actiu ? "#e8f0fe" : "none", border:"none",
               borderBottom: actiu ? "3px solid #1a6fb5" : "3px solid transparent",
               color: actiu ? "#1a6fb5" : disabled ? "#bbb" : "#555",
-              fontWeight: actiu ? 700 : 400,
-              fontSize:"0.72rem", cursor:disabled ? "default" : "pointer",
+              fontWeight: actiu ? 700 : 400, fontSize:"0.72rem", cursor:disabled ? "default" : "pointer",
               display:"flex", flexDirection:"column", alignItems:"center", gap:"0.15rem",
             }}>
               <span style={{ fontSize:"1.1rem" }}>{t.icon}</span>{t.label}
@@ -2045,14 +2123,13 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
         })}
       </div>
 
-      {/* ── CONFIGURACIÓ ── */}
+      {/* CONFIG */}
       {tab === "config" && (
         <div style={{ display:"flex", flexDirection:"column", gap:"0.75rem" }}>
           <MobCard title="Dades del centre (opcional)">
             <input value={centre} onChange={e => setCentre(e.target.value)} placeholder="Nom del centre..." style={iStyleInf} />
             <input value={tutor} onChange={e => setTutor(e.target.value)} placeholder="Nom del tutor/a..." style={{ ...iStyleInf, marginTop:"0.5rem" }} />
           </MobCard>
-
           <MobCard title="Trimestre">
             <div style={{ display:"flex", flexDirection:"column", gap:"0.5rem" }}>
               {TRIMESTRES_INF.map(t => (
@@ -2062,7 +2139,6 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
               ))}
             </div>
           </MobCard>
-
           <MobCard title="Curs">
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"0.5rem" }}>
               {CURSOS.map(c => (
@@ -2072,8 +2148,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
               ))}
             </div>
           </MobCard>
-
-          <MobCard title="Àrees a avaluar (selecciona totes les que necessites)">
+          <MobCard title="Àrees a avaluar">
             <div style={{ display:"flex", flexDirection:"column", gap:"0.5rem" }}>
               {AREES_INF.map(a => (
                 <div key={a.id} style={{ display:"flex", alignItems:"center", gap:"0.5rem" }}>
@@ -2082,16 +2157,14 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
                     border:`2px solid ${arees.includes(a.id) ? "#7b1fa2" : "#e0e0e0"}`,
                     background: arees.includes(a.id) ? "#f3e5f5" : "white",
                     color: arees.includes(a.id) ? "#7b1fa2" : "#444",
-                    fontWeight: arees.includes(a.id) ? 700 : 400,
-                    fontSize:"0.88rem", cursor:"pointer",
+                    fontWeight: arees.includes(a.id) ? 700 : 400, fontSize:"0.88rem", cursor:"pointer",
                     display:"flex", alignItems:"center", justifyContent:"space-between",
                   }}>
                     <span>{a.icon} {a.label}</span>
-                    {arees.includes(a.id) && <span style={{ fontSize:"1rem" }}>✓</span>}
+                    {arees.includes(a.id) && <span>✓</span>}
                   </button>
-                  {/* ▼ MILLORA 5: botó eliminar àrea seleccionada */}
                   {arees.includes(a.id) && (
-                    <button onClick={() => eliminarArea(a.id)} title="Eliminar àrea"
+                    <button onClick={() => eliminarArea(a.id)}
                       style={{ background:"none", border:"1.5px solid #fca5a5", borderRadius:8,
                         color:"#e57373", fontSize:"1rem", cursor:"pointer", padding:"0.4rem 0.6rem", flexShrink:0 }}>
                       ✕
@@ -2106,16 +2179,16 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
               </div>
             )}
           </MobCard>
-
           {configOk && (
             <button onClick={aplicarConfig} style={{ ...pBtnInf, width:"100%", padding:"1rem", fontSize:"1rem" }}>
               Crear graella →
             </button>
           )}
+          <IaBanner />
         </div>
       )}
 
-      {/* ── GRAELLA ── */}
+      {/* GRAELLA */}
       {tab === "graella" && (
         <div style={{ display:"flex", flexDirection:"column", gap:"0.75rem" }}>
           <MobCard title="Alumnes">
@@ -2150,10 +2223,8 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
 
           {alumnes.length > 0 && (
             <>
-              <div style={{ fontWeight:700, color:"#1a3a5c", fontSize:"0.85rem", marginBottom:"0.25rem" }}>
-                Selecciona l'àrea a valorar:
-              </div>
-              <div style={{ overflowX:"auto", display:"flex", gap:"0.5rem", paddingBottom:"0.3rem", marginBottom:"0.25rem" }}>
+              <div style={{ fontWeight:700, color:"#1a3a5c", fontSize:"0.85rem" }}>Selecciona l'àrea a valorar:</div>
+              <div style={{ overflowX:"auto", display:"flex", gap:"0.5rem", paddingBottom:"0.3rem" }}>
                 {areesSelObj.map(a => {
                   const prog = progresArea(a.id);
                   const activa = areaActiva === a.id;
@@ -2161,10 +2232,8 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
                     <button key={a.id} onClick={() => setAreaActiva(a.id)} style={{
                       flexShrink:0, padding:"0.45rem 0.9rem", borderRadius:20,
                       border:`2px solid ${activa ? "#7b1fa2" : "#ddd"}`,
-                      background: activa ? "#f3e5f5" : "white",
-                      color: activa ? "#7b1fa2" : "#555",
-                      fontWeight: activa ? 700 : 400,
-                      fontSize:"0.82rem", cursor:"pointer", whiteSpace:"nowrap", position:"relative",
+                      background: activa ? "#f3e5f5" : "white", color: activa ? "#7b1fa2" : "#555",
+                      fontWeight: activa ? 700 : 400, fontSize:"0.82rem", cursor:"pointer", whiteSpace:"nowrap",
                     }}>
                       {a.icon} {a.label}
                       {prog > 0 && (
@@ -2177,7 +2246,6 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
                 })}
               </div>
 
-              {/* Criteris de l'àrea activa */}
               {areaActiva && !esGeneral && (
                 <MobCard title={`Criteris · ${areaActivaObj?.label}`}>
                   <div style={{ display:"flex", gap:"0.5rem", marginBottom:"0.5rem" }}>
@@ -2195,7 +2263,6 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
                 </MobCard>
               )}
 
-              {/* ▼ MILLORA 4: Criteris del Comentari General editables */}
               {areaActiva && esGeneral && (
                 <MobCard title="Criteris · Comentari General">
                   <div style={{ display:"flex", gap:"0.5rem", marginBottom:"0.5rem" }}>
@@ -2253,10 +2320,11 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
               Generar informes →
             </button>
           )}
+          <IaBanner />
         </div>
       )}
 
-      {/* ── INFORMES ── */}
+      {/* INFORMES */}
       {tab === "informes" && (
         <div style={{ display:"flex", flexDirection:"column", gap:"0.75rem" }}>
           {!graellaOk ? (
@@ -2275,8 +2343,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
                       border:`2px solid ${alumneActiu === i ? "#1a6fb5" : "#ddd"}`,
                       background: alumneActiu === i ? "#e3f0ff" : "white",
                       color: alumneActiu === i ? "#1a6fb5" : "#555",
-                      fontWeight: alumneActiu === i ? 700 : 400,
-                      fontSize:"0.82rem", cursor:"pointer", whiteSpace:"nowrap", position:"relative",
+                      fontWeight: alumneActiu === i ? 700 : 400, fontSize:"0.82rem", cursor:"pointer", whiteSpace:"nowrap", position:"relative",
                     }}>
                       {amb === total && total > 0 && <span style={{ position:"absolute", top:-3, right:-3, width:9, height:9, borderRadius:"50%", background:"#4caf50", border:"1.5px solid white" }} />}
                       {a.split(" ")[0]}
@@ -2326,7 +2393,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
                       <button onClick={() => generarComentari(aObj.id, alumneActiu)}
                         disabled={generant[`${aObj.id}_${alumneActiu}`]}
                         style={{ ...pBtnInf, fontSize:"0.72rem", padding:"0.25rem 0.7rem", background: aObj.id === "general" ? "#6a1b9a" : "#1a6fb5" }}>
-                        {generant[`${aObj.id}_${alumneActiu}`] ? <><Spinner /> ...</> : "✨ Generar"}
+                        {generant[`${aObj.id}_${alumneActiu}`] ? "..." : "✨ Generar"}
                       </button>
                     </div>
                     <textarea
@@ -2353,6 +2420,7 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
               </div>
             </>
           )}
+          <IaBanner />
         </div>
       )}
 
@@ -2367,17 +2435,16 @@ FORMAT: Segona persona singular. Comença amb "Aquest trimestre" o similar. Par�
 export default function App() {
   const [tab, setTab]     = useState("reunions");
   const [toast, setToast] = useState("");
-  // Clau API: null = no comprovada, "" = no hi ha, "xxx" = hi ha clau
-  const [apiKey, setApiKey]     = useState(() => getApiKey());
+  const [apiKey, setApiKey]             = useState(() => getApiKey());
   const [showApiModal, setShowApiModal] = useState(() => !getApiKey());
   const [apiModalError, setApiModalError] = useState("");
+  const [showDisclaimer, setShowDisclaimer] = useState(() => !getDisclaimerAccepted());
 
   const onToast = useCallback(msg => {
     setToast(msg);
     setTimeout(() => setToast(""), 2500);
   }, []);
 
-  // Quan una pestanya detecta error de clau, mostrem el modal
   const onApiKeyError = useCallback((errorType) => {
     setApiModalError(errorType === "CLAU_INVALIDA" ? "CLAU_INVALIDA" : "");
     setShowApiModal(true);
@@ -2387,6 +2454,11 @@ export default function App() {
     setApiKey(newKey);
     setShowApiModal(false);
     setApiModalError("");
+  }, []);
+
+  const handleAcceptDisclaimer = useCallback(() => {
+    setDisclaimerAccepted();
+    setShowDisclaimer(false);
   }, []);
 
   const TABS = [
@@ -2400,7 +2472,6 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
         @keyframes spin { to { transform:rotate(360deg); } }
-        @keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         * { box-sizing:border-box; margin:0; padding:0; }
         select { appearance:auto; }
         ::-webkit-scrollbar { width:5px; }
@@ -2408,13 +2479,8 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
       `}</style>
 
-      {/* Modal clau API */}
-      {showApiModal && (
-        <ApiKeyModal
-          onSave={handleSaveKey}
-          errorMsg={apiModalError}
-        />
-      )}
+      {showDisclaimer && <DisclaimerModal onAccept={handleAcceptDisclaimer} />}
+      {!showDisclaimer && showApiModal && <ApiKeyModal onSave={handleSaveKey} errorMsg={apiModalError} />}
 
       <header style={{ background:"white", borderBottom:"1px solid #e2e8f0", position:"sticky", top:0, zIndex:100, boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
         <div style={{ maxWidth:960, margin:"0 auto", padding:"0 1rem" }}>
@@ -2429,7 +2495,6 @@ export default function App() {
               </div>
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              {/* Botó canviar clau */}
               <button onClick={() => { setApiModalError(""); setShowApiModal(true); }}
                 title="Canviar Clau API de Groq"
                 style={{ fontSize:11, color: apiKey ? "#059669" : "#dc2626", background:"none",
@@ -2439,12 +2504,11 @@ export default function App() {
                 <Key size={11} /> {apiKey ? "Clau activa" : "Sense clau"}
               </button>
               <button onClick={() => {
-                if (confirm("Vols esborrar totes les dades guardades (reunions, SdA, informes)? No es pot desfer.")) {
+                if (confirm("Vols esborrar totes les dades guardades? No es pot desfer.")) {
                   clearAllPersisted();
                   location.reload();
                 }
-              }} title="Esborra totes les dades guardades i comença de nou"
-              style={{ fontSize:11, color:"#94a3b8", background:"none", border:"1px solid #e2e8f0", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              }} style={{ fontSize:11, color:"#94a3b8", background:"none", border:"1px solid #e2e8f0", borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                 🗑️ Començar de nou
               </button>
             </div>
