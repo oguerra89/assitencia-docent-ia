@@ -28,6 +28,12 @@ function clearAllPersisted() {
   });
 }
 
+function clearPersisted(prefix) {
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith("docent_" + prefix)) localStorage.removeItem(k);
+  });
+}
+
 function getApiKey() { return localStorage.getItem("gemini_api_key") || ""; }
 function saveApiKey(key) { localStorage.setItem("gemini_api_key", key); }
 function getDisclaimerAccepted() { return localStorage.getItem("docent_disclaimer_accepted") === "true"; }
@@ -58,6 +64,7 @@ async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
     const d = await r.json();
     if (d.error) {
       if (d.error.code === 401) throw new Error("CLAU_INVALIDA");
+      if (d.error.code === 429 || (d.error.message || "").toLowerCase().includes("rate limit") || (d.error.message || "").toLowerCase().includes("too many")) throw new Error("LIMIT_PETICIONS");
       throw new Error(d.error.message);
     }
     const text = d.choices?.[0]?.message?.content || "";
@@ -103,6 +110,7 @@ async function geminiSDC(prompt, maxTokens = 1500) {
     const d = await r.json();
     if (d.error) {
       if (d.error.code === 401) throw new Error("CLAU_INVALIDA");
+      if (d.error.code === 429 || (d.error.message || "").toLowerCase().includes("rate limit") || (d.error.message || "").toLowerCase().includes("too many")) throw new Error("LIMIT_PETICIONS");
       throw new Error(d.error.message);
     }
     const text = d.choices?.[0]?.message?.content || "";
@@ -123,6 +131,12 @@ async function geminiInf(prompt) {
 function isApiKeyError(err) {
   return err?.message === "CAL_CLAU" || err?.message === "CLAU_INVALIDA";
 }
+
+function isLimitError(err) {
+  return err?.message === "LIMIT_PETICIONS";
+}
+
+const LIMIT_MSG = "Has arribat al límit de peticions gratuïtes de Groq. Espera una estona i torna-ho a intentar més tard.";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const TIPUS_REUNIO = [
@@ -880,6 +894,7 @@ function ReunionsTab({ onToast, onApiKeyError }) {
       setResult(cleanActa(restoreAnon(raw)));
     } catch(e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); return; }
+      if (isLimitError(e)) { setResult(LIMIT_MSG); setLoading(false); return; }
       setResult("Error de connexió. Torna-ho a intentar.");
     }
     setLoading(false);
@@ -990,6 +1005,21 @@ function ReunionsTab({ onToast, onApiKeyError }) {
       <ActaDocView text={result} onCopyModal={() => setCopyModal(true)}
         onDownload={() => downloadTxt(result, `acta_${tipus}_${form.data||"data"}`)} />
       {copyModal && <CopyModal text={result} onClose={() => setCopyModal(false)} />}
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
+        <button onClick={() => {
+          if (confirm("Vols esborrar totes les dades de Reunions? No es pot desfer.")) {
+            clearPersisted("reun_");
+            setTipus(null); setForm({ data:"", objectiu:"", assistents:"", temes:"", acords:"", aspectes:"" });
+            setTasques([emptyTasca()]); setResult("");
+          }
+        }} style={{
+          fontSize:11, color:"#94a3b8", background:"none", border:"1px solid #e2e8f0",
+          borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
+          display:"flex", alignItems:"center", gap:5
+        }}>
+          🗑️ Esborrar dades de Reunions
+        </button>
+      </div>
       <IaBanner />
     </div>
   );
@@ -1181,6 +1211,7 @@ Genera el MARC competencial REAL per "${titol}" amb les àrees ${arees.join(", "
       setStep(1);
     } catch (e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
+      if (isLimitError(e)) { setError(LIMIT_MSG); setLoading(false); setProgress(""); return; }
       setError(e.message || "Error desconegut");
     }
     setProgress(""); setLoading(false);
@@ -1234,6 +1265,7 @@ Genera els objectius (mínim 1 per CA, màxim 6 en total). RECORDA: cada objecti
       setStep(2);
     } catch (e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
+      if (isLimitError(e)) { setError(LIMIT_MSG); setLoading(false); setProgress(""); return; }
       setError(e.message || "Error desconegut");
     }
     setProgress(""); setLoading(false);
@@ -1331,6 +1363,7 @@ Genera EXACTAMENT ${sessDesenv} activitats per "${titol}".`, 2000);
       setStep(3);
     } catch (e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
+      if (isLimitError(e)) { setError(LIMIT_MSG); setLoading(false); setProgress(""); return; }
       setError(e.message || "Error desconegut");
     }
     setProgress(""); setLoading(false);
@@ -1709,6 +1742,22 @@ Genera EXACTAMENT ${sessDesenv} activitats per "${titol}".`, 2000);
       )}
 
       {loading && <Loading text={progress || "La IA està generant contingut..."} />}
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
+        <button onClick={() => {
+          if (confirm("Vols esborrar totes les dades de Situacions d'Aprenentatge? No es pot desfer.")) {
+            clearPersisted("sda_");
+            setTitol(""); setFil(""); setTrimestre("1r Trimestre"); setCurs("3r");
+            setSessions("6"); setArees([]); setStep(0);
+            setMarcData([]); setObjData([]); setFinalData(null); setError("");
+          }
+        }} style={{
+          fontSize:11, color:"#94a3b8", background:"none", border:"1px solid #e2e8f0",
+          borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
+          display:"flex", alignItems:"center", gap:5
+        }}>
+          🗑️ Esborrar dades de SdA
+        </button>
+      </div>
     </div>
   );
 }
@@ -1727,6 +1776,7 @@ function SdAArquitec({ onToast, onApiKeyError }) {
       setData(await geminiJSON(sys, prompt, 2800));
     } catch(e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); return; }
+      if (isLimitError(e)) { alert(LIMIT_MSG); return; }
       alert("Error processant el material. Torna-ho a intentar.");
     }
     setLoading(false);
@@ -1774,6 +1824,7 @@ function SdADUA({ onToast, onApiKeyError }) {
       setResult(res);
     } catch(e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); return; }
+      if (isLimitError(e)) { setResult(LIMIT_MSG); return; }
       setResult("Error de connexió.");
     }
     setLoading(false);
@@ -2097,8 +2148,9 @@ function InformesTab({ onToast, onApiKeyError }) {
       }
     } catch(e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); setGenerant(g => ({ ...g, [key]: false })); return; }
-      if (aId === "general") setComentarisGeneral(c => ({ ...c, [ai]: "Error. Torna-ho a intentar." }));
-      else setComentaris(c => ({ ...c, [aId]: { ...(c[aId] || {}), [ai]: "Error. Torna-ho a intentar." } }));
+      const errMsg = isLimitError(e) ? LIMIT_MSG : "Error. Torna-ho a intentar.";
+      if (aId === "general") setComentarisGeneral(c => ({ ...c, [ai]: errMsg }));
+      else setComentaris(c => ({ ...c, [aId]: { ...(c[aId] || {}), [ai]: errMsg } }));
     }
     setGenerant(g => ({ ...g, [key]: false }));
   }
@@ -2488,6 +2540,37 @@ function InformesTab({ onToast, onApiKeyError }) {
               </div>
             </>
           )}
+          <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:8 }}>
+            <button onClick={() => {
+              if (confirm("Vols esborrar tots els comentaris generats? Les valoracions es mantindran.")) {
+                clearPersisted("inf_comentaris");
+                clearPersisted("inf_comentGen");
+                setComentaris({}); setComentarisGeneral({});
+              }
+            }} style={{
+              fontSize:11, color:"#94a3b8", background:"none", border:"1px solid #e2e8f0",
+              borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
+              display:"flex", alignItems:"center", gap:5
+            }}>
+              🗑️ Esborrar comentaris
+            </button>
+            <button onClick={() => {
+              if (confirm("Vols esborrar TOTES les dades d'Informes (alumnes, valoracions i comentaris)? No es pot desfer.")) {
+                clearPersisted("inf_");
+                setTab("config"); setTrimestre(null); setCurs(""); setArees([]);
+                setAreaActiva(null); setCentre(""); setTutor(""); setAlumnes([]);
+                setCriterisPerArea({}); setCriterisGeneral(CRITERIS_GENERAL_INF_DEFAULT);
+                setValorations({}); setComentaris({}); setComentarisGeneral({});
+                setAlumneActiu(0);
+              }
+            }} style={{
+              fontSize:11, color:"#dc2626", background:"none", border:"1px solid #fca5a5",
+              borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
+              display:"flex", alignItems:"center", gap:5
+            }}>
+              🗑️ Esborrar tot d'Informes
+            </button>
+          </div>
           <IaBanner />
         </div>
       )}
