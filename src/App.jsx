@@ -1128,15 +1128,18 @@ function SdACreador({ onToast, onApiKeyError }) {
   }
 
   function parseObjBloc(raw) {
-    const objBloc = tag_SDC(raw, "objectius");
-    if (!objBloc) return [];
-    // Separador robust: accepta ---, ***, línia en blanc doble, o línia que comença per OBJ:
-    // Primer intentem separar per --- o línies en blanc múltiples
-    let blocs = objBloc.split(/\n\s*---+\s*\n|\n{2,}(?=OBJ:|OBJECTIU:)/i);
-    // Si no ha funcionat i només hi ha 1 bloc però conté múltiples OBJ:, separar manualment
-    if (blocs.length <= 1 && (objBloc.match(/^OBJ:/gim) || []).length > 1) {
-      blocs = objBloc.split(/(?=^OBJ:)/im);
+    // Intentem treure el contingut de les etiquetes; si no hi ha etiquetes, usem el raw sencer
+    let contingut = tag_SDC(raw, "objectius");
+    if (!contingut) contingut = raw.trim();
+    if (!contingut) return [];
+
+    // Separador robust: ---, línies en blanc dobles, o nova entrada OBJ:
+    let blocs = contingut.split(/\n\s*---+\s*\n/);
+    if (blocs.length <= 1) blocs = contingut.split(/\n{2,}(?=OBJ:|OBJECTIU:)/i);
+    if (blocs.length <= 1 && (contingut.match(/^OBJ:/gim) || []).length > 1) {
+      blocs = contingut.split(/(?=^OBJ:)/im);
     }
+
     return blocs.map(bloc => {
       const lines = bloc.trim().split("\n").filter(l => l.trim());
       const get = (...prefixes) => {
@@ -1260,8 +1263,21 @@ N3: Descripció nivell 3
 Genera els objectius (mínim 1 per CA, màxim 6 en total). RECORDA: cada objectiu separat per --- en una línia sola.`, 2000);
 
       const parsed = parseObjBloc(raw);
-      if (parsed.length === 0) throw new Error("No s'han pogut generar els objectius. Torna-ho a intentar.");
-      setObjData(parsed);
+      if (parsed.length === 0) {
+        // Fallback: crear objectius bàsics a partir dels CA del marc
+        const fallback = marcData.map(r => ({
+          obj: `Assolir: ${r.ca}`,
+          ca: r.ca.split(":")[0].trim(),
+          criteri: r.ca,
+          n1: "Assoliment inicial amb suport del docent",
+          n2: "Assoliment amb autonomia creixent",
+          n3: "Assoliment autònom i amb iniciativa pròpia"
+        })).slice(0, 6);
+        if (fallback.length === 0) throw new Error("No s'han pogut generar els objectius. Torna-ho a intentar.");
+        setObjData(fallback);
+      } else {
+        setObjData(parsed);
+      }
       setStep(2);
     } catch (e) {
       if (isApiKeyError(e)) { onApiKeyError(e.message); setLoading(false); setProgress(""); return; }
