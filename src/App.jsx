@@ -3,7 +3,8 @@ import {
   Users, BookOpen, FileText, Copy, Download, Plus, Trash2,
   Sparkles, ClipboardList, Accessibility, CheckCircle2,
   Wand2, Blocks, ListChecks, GraduationCap,
-  Repeat2, School, AlertTriangle, X, ClipboardCheck, Key, ChevronLeft, Edit3
+  Repeat2, School, AlertTriangle, X, ClipboardCheck, Key, ChevronLeft, Edit3,
+  Library, Send, Trash2 as Trash2Icon, FileUp, MessageCircle
 } from "lucide-react";
 
 // ─── PERSISTÈNCIA localStorage ───────────────────────────────────────────────
@@ -2596,6 +2597,374 @@ function InformesTab({ onToast, onApiKeyError }) {
   );
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// ─── TAB 4: ATENEU DIGITAL ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+
+const CURRICULUM_KEY = "docent_ateneu_curriculum_text";
+const CURRICULUM_NAME_KEY = "docent_ateneu_curriculum_name";
+const MAX_CONTEXT_CHARS = 12000; // ~3000 tokens, deixem marge
+
+function getCurriculumText() {
+  try { return localStorage.getItem(CURRICULUM_KEY) || ""; } catch(e) { return ""; }
+}
+function getCurriculumName() {
+  try { return localStorage.getItem(CURRICULUM_NAME_KEY) || ""; } catch(e) { return ""; }
+}
+function saveCurriculum(text, name) {
+  try {
+    localStorage.setItem(CURRICULUM_KEY, text.slice(0, 800000));
+    localStorage.setItem(CURRICULUM_NAME_KEY, name);
+    return true;
+  } catch(e) { return false; }
+}
+function deleteCurriculum() {
+  try {
+    localStorage.removeItem(CURRICULUM_KEY);
+    localStorage.removeItem(CURRICULUM_NAME_KEY);
+  } catch(e) {}
+}
+
+// Extreu text d'un PDF usant pdf.js via CDN
+async function extractPdfText(file) {
+  return new Promise((resolve, reject) => {
+    const script = document.getElementById("pdfjs-script");
+    const doExtract = () => {
+      const pdfjsLib = window["pdfjs-dist/build/pdf"];
+      if (!pdfjsLib) { reject(new Error("No s'ha pogut carregar pdf.js")); return; }
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const typedArray = new Uint8Array(e.target.result);
+          const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map(item => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          resolve(fullText.trim());
+        } catch(err) { reject(err); }
+      };
+      reader.onerror = () => reject(new Error("Error llegint el fitxer"));
+      reader.readAsArrayBuffer(file);
+    };
+
+    if (window["pdfjs-dist/build/pdf"]) { doExtract(); return; }
+    if (!script) {
+      const s = document.createElement("script");
+      s.id = "pdfjs-script";
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      s.onload = () => setTimeout(doExtract, 200);
+      s.onerror = () => reject(new Error("No s\'ha pogut carregar pdf.js"));
+      document.head.appendChild(s);
+    } else {
+      script.addEventListener("load", () => setTimeout(doExtract, 200), { once: true });
+    }
+  });
+}
+
+// Selecciona el fragment més rellevant del currículum per a la pregunta
+function selectRelevantContext(currText, question) {
+  if (!currText) return "";
+  if (currText.length <= MAX_CONTEXT_CHARS) return currText;
+
+  // Paraules clau de la pregunta
+  const keywords = question.toLowerCase()
+    .replace(/[.,?!;:]/g, "")
+    .split(/\s+/)
+    .filter(w => w.length > 3);
+
+  // Dividim el text en blocs de ~1000 caràcters
+  const blockSize = 1000;
+  const blocks = [];
+  for (let i = 0; i < currText.length; i += blockSize) {
+    blocks.push({ text: currText.slice(i, i + blockSize), start: i });
+  }
+
+  // Puntuem cada bloc per rellevància
+  const scored = blocks.map(b => {
+    const lower = b.text.toLowerCase();
+    const score = keywords.reduce((acc, kw) => acc + (lower.includes(kw) ? 1 : 0), 0);
+    return { ...b, score };
+  });
+
+  // Agafem els blocs més rellevants fins a MAX_CONTEXT_CHARS
+  scored.sort((a, b) => b.score - a.score);
+  let context = "";
+  for (const b of scored) {
+    if (context.length + b.text.length > MAX_CONTEXT_CHARS) break;
+    context += b.text + "\n";
+  }
+  return context || currText.slice(0, MAX_CONTEXT_CHARS);
+}
+
+function AteneuDigital({ onApiKeyError }) {
+  const [currText, setCurrText]   = useState(() => getCurriculumText());
+  const [currName, setCurrName]   = useState(() => getCurriculumName());
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [messages, setMessages]   = useState([
+    { role: "assistant", text: "Hola! Soc el teu assistent del currículum. Pots fer-me qualsevol pregunta sobre el currículum de primària de Catalunya." }
+  ]);
+  const [input, setInput]         = useState("");
+  const [thinking, setThinking]   = useState(false);
+  const fileRef                   = useRef(null);
+  const bottomRef                 = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") { setUploadError("Només s'accepten fitxers PDF."); return; }
+    setUploading(true); setUploadError("");
+    try {
+      const text = await extractPdfText(file);
+      if (!text || text.length < 100) throw new Error("No s\'ha pogut extreure text del PDF.");
+      const saved = saveCurriculum(text, file.name);
+      if (!saved) throw new Error("No hi ha prou espai al navegador. Prova amb un fitxer més petit.");
+      setCurrText(text);
+      setCurrName(file.name);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        text: `✅ Document carregat correctament: "${file.name}" (${Math.round(text.length/1000)}k caràcters). Ja pots fer-me preguntes!`
+      }]);
+    } catch(err) {
+      setUploadError(err.message || "Error carregant el document.");
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function handleDeleteCurriculum() {
+    if (!confirm("Vols eliminar el document carregat?")) return;
+    deleteCurriculum();
+    setCurrText(""); setCurrName("");
+    setMessages([{
+      role: "assistant",
+      text: "Document eliminat. Carrega un nou document per continuar."
+    }]);
+  }
+
+  async function handleSend() {
+    const q = input.trim();
+    if (!q || thinking) return;
+    if (!currText) {
+      setMessages(prev => [...prev, { role:"user", text:q }, { role:"assistant", text:"⚠️ Primer has de carregar el document del currículum." }]);
+      setInput(""); return;
+    }
+
+    setMessages(prev => [...prev, { role:"user", text:q }]);
+    setInput(""); setThinking(true);
+
+    try {
+      const context = selectRelevantContext(currText, q);
+      // Historial de conversa (últims 6 missatges per no excedir tokens)
+      const history = messages.slice(-6).map(m => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.text
+      }));
+
+      const systemPrompt = `Ets un expert en el currículum de primària de Catalunya (Decret 175/2022, LOMLOE).
+Respon les preguntes dels docents basant-te ÚNICAMENT en el fragment del currículum que t'adjunto.
+Si la informació no és al fragment proporcionat, digues-ho honestament.
+Respon en català, de manera clara i concisa. Quan citis competències o criteris, usa la numeració oficial.
+
+FRAGMENT DEL CURRÍCULUM:
+${context}`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getApiKey()}`
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...history,
+            { role: "user", content: q }
+          ],
+          max_tokens: 1200,
+          temperature: 0.3,
+        }),
+      });
+      const d = await r.json();
+      if (d.error) {
+        if (d.error.code === 401) { onApiKeyError("CLAU_INVALIDA"); setThinking(false); return; }
+        if (d.error.code === 429) throw new Error(LIMIT_MSG);
+        throw new Error(d.error.message);
+      }
+      const answer = d.choices?.[0]?.message?.content || "No he pogut generar una resposta.";
+      setMessages(prev => [...prev, { role:"assistant", text: answer }]);
+    } catch(err) {
+      setMessages(prev => [...prev, { role:"assistant", text:`⚠️ ${err.message || "Error de connexió."}` }]);
+    }
+    setThinking(false);
+  }
+
+  return (
+    <div style={{ maxWidth:720, margin:"0 auto" }}>
+      {/* Capçalera document */}
+      <div style={{
+        background:"white", border:"1.5px solid #e2e8f0", borderRadius:12,
+        padding:"1rem 1.25rem", marginBottom:16,
+        display:"flex", alignItems:"center", justifyContent:"space-between", gap:12
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flex:1, minWidth:0 }}>
+          <div style={{
+            width:40, height:40, borderRadius:10, flexShrink:0,
+            background: currText ? "#dbeafe" : "#f1f5f9",
+            display:"flex", alignItems:"center", justifyContent:"center"
+          }}>
+            <Library size={20} color={currText ? "#1e3a8a" : "#94a3b8"} />
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#1e293b" }}>
+              {currText ? currName : "Cap document carregat"}
+            </div>
+            <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>
+              {currText
+                ? `${Math.round(currText.length/1000)}k caràcters indexats`
+                : "Carrega el currículum per poder fer consultes"}
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+          {currText && (
+            <button onClick={handleDeleteCurriculum} style={{
+              fontSize:11, color:"#dc2626", background:"none", border:"1px solid #fca5a5",
+              borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
+              display:"flex", alignItems:"center", gap:4
+            }}>
+              <Trash2Icon size={12} /> Eliminar
+            </button>
+          )}
+          <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{
+            fontSize:12, fontWeight:700, color:"white",
+            background: uploading ? "#94a3b8" : "#1e3a8a",
+            border:"none", borderRadius:8, padding:"6px 14px",
+            cursor: uploading ? "not-allowed" : "pointer", fontFamily:"inherit",
+            display:"flex", alignItems:"center", gap:5
+          }}>
+            <FileUp size={13} /> {uploading ? "Carregant..." : currText ? "Canviar" : "Carregar PDF"}
+          </button>
+          <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileUpload}
+            style={{ display:"none" }} />
+        </div>
+      </div>
+
+      {uploadError && (
+        <div style={{ background:"#fff5f5", border:"1.5px solid #fca5a5", borderRadius:10,
+          padding:"10px 14px", marginBottom:12, fontSize:12, color:"#b91c1c",
+          display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          ⚠️ {uploadError}
+          <button onClick={() => setUploadError("")} style={{ background:"none", border:"none", cursor:"pointer", color:"#b91c1c" }}>✕</button>
+        </div>
+      )}
+
+      {/* Xat */}
+      <div style={{
+        background:"white", border:"1.5px solid #e2e8f0", borderRadius:12,
+        overflow:"hidden", display:"flex", flexDirection:"column", height:500
+      }}>
+        {/* Missatges */}
+        <div style={{ flex:1, overflowY:"auto", padding:"1.25rem", display:"flex", flexDirection:"column", gap:12 }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{
+              display:"flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start"
+            }}>
+              {m.role === "assistant" && (
+                <div style={{
+                  width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#1e3a8a,#2563eb)",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                  marginRight:8, marginTop:2
+                }}>
+                  <MessageCircle size={14} color="white" />
+                </div>
+              )}
+              <div style={{
+                maxWidth:"78%", padding:"10px 14px", borderRadius:
+                  m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                background: m.role === "user" ? "#1e3a8a" : "#f1f5f9",
+                color: m.role === "user" ? "white" : "#1e293b",
+                fontSize:13, lineHeight:1.6, whiteSpace:"pre-wrap"
+              }}>
+                {m.text}
+              </div>
+            </div>
+          ))}
+          {thinking && (
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{
+                width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#1e3a8a,#2563eb)",
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0
+              }}>
+                <MessageCircle size={14} color="white" />
+              </div>
+              <div style={{ background:"#f1f5f9", borderRadius:"18px 18px 18px 4px", padding:"10px 14px" }}>
+                <Spinner />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div style={{
+          borderTop:"1.5px solid #e2e8f0", padding:"12px 16px",
+          display:"flex", gap:8, alignItems:"flex-end", background:"white"
+        }}>
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder={currText ? "Fes una pregunta sobre el currículum..." : "Primer carrega el document PDF..."}
+            disabled={!currText || thinking}
+            rows={1}
+            style={{
+              flex:1, padding:"9px 12px", borderRadius:10, border:"1.5px solid #e2e8f0",
+              fontSize:13, outline:"none", resize:"none", fontFamily:"inherit",
+              background: (!currText || thinking) ? "#f8fafc" : "white",
+              color:"#1e293b", lineHeight:1.5, maxHeight:100, overflowY:"auto"
+            }}
+          />
+          <button onClick={handleSend} disabled={!input.trim() || !currText || thinking}
+            style={{
+              width:38, height:38, borderRadius:10, border:"none", flexShrink:0,
+              background: (input.trim() && currText && !thinking) ? "#1e3a8a" : "#e2e8f0",
+              cursor: (input.trim() && currText && !thinking) ? "pointer" : "not-allowed",
+              display:"flex", alignItems:"center", justifyContent:"center"
+            }}>
+            <Send size={16} color={(input.trim() && currText && !thinking) ? "white" : "#94a3b8"} />
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
+        <button onClick={() => {
+          if (!confirm("Vols esborrar l\'historial de la conversa?")) return;
+          setMessages([{ role:"assistant", text:"Hola! Soc el teu assistent del currículum. Pots fer-me qualsevol pregunta sobre el currículum de primària de Catalunya." }]);
+        }} style={{
+          fontSize:11, color:"#94a3b8", background:"none", border:"1px solid #e2e8f0",
+          borderRadius:8, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit",
+          display:"flex", alignItems:"center", gap:5
+        }}>
+          🗑️ Esborrar conversa
+        </button>
+      </div>
+      <IaBanner />
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ─── APP PRINCIPAL ────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════
@@ -2632,6 +3001,7 @@ export default function App() {
     { id:"reunions",  label:"Reunions",          icon:ClipboardList  },
     { id:"sda",       label:"Sit. Aprenentatge", icon:BookOpen       },
     { id:"informes",  label:"Informes Avaluació",icon:ClipboardCheck },
+    { id:"ateneu",    label:"Ateneu Digital",     icon:Library        },
   ];
 
   return (
@@ -2698,9 +3068,10 @@ export default function App() {
       </header>
 
       <main style={{ maxWidth:960, margin:"0 auto", padding:"1.5rem 1rem 3rem" }}>
-        {tab==="reunions" && <ReunionsTab  onToast={onToast} onApiKeyError={onApiKeyError} />}
-        {tab==="sda"      && <SdATab       onToast={onToast} onApiKeyError={onApiKeyError} />}
-        {tab==="informes" && <InformesTab  onToast={onToast} onApiKeyError={onApiKeyError} />}
+        {tab==="reunions" && <ReunionsTab    onToast={onToast} onApiKeyError={onApiKeyError} />}
+        {tab==="sda"      && <SdATab         onToast={onToast} onApiKeyError={onApiKeyError} />}
+        {tab==="informes" && <InformesTab    onToast={onToast} onApiKeyError={onApiKeyError} />}
+        {tab==="ateneu"   && <AteneuDigital  onApiKeyError={onApiKeyError} />}
       </main>
 
       <Toast msg={toast} onClose={() => setToast("")} />
