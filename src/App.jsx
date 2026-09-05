@@ -105,7 +105,7 @@ async function geminiSDC(prompt, maxTokens = 1500) {
         model: GROQ_MODEL,
         messages: [{ role: "user", content: prompt }],
         max_tokens: maxTokens, temperature: 0.6,
-        reasoning_effort: "none",
+        reasoning_effort: "low",
       }),
     });
     clearTimeout(timeout);
