@@ -41,7 +41,7 @@ function getDisclaimerAccepted() { return localStorage.getItem("docent_disclaime
 function setDisclaimerAccepted() { localStorage.setItem("docent_disclaimer_accepted", "true"); }
 
 // ─── API GROQ ─────────────────────────────────────────────────────────────────
-const GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
   const apiKey = getApiKey();
@@ -58,7 +58,7 @@ async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
           ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
           { role: "user", content: userPrompt }
         ],
-        max_tokens: maxTokens, temperature: 0.9,
+        max_tokens: maxTokens, temperature: 0.6,
       }),
     });
     clearTimeout(timeout);
@@ -104,7 +104,8 @@ async function geminiSDC(prompt, maxTokens = 1500) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: maxTokens, temperature: 0.9,
+        max_tokens: maxTokens, temperature: 0.6,
+        reasoning_effort: "none",
       }),
     });
     clearTimeout(timeout);
@@ -114,7 +115,9 @@ async function geminiSDC(prompt, maxTokens = 1500) {
       if (d.error.code === 429 || (d.error.message || "").toLowerCase().includes("rate limit") || (d.error.message || "").toLowerCase().includes("too many")) throw new Error("LIMIT_PETICIONS");
       throw new Error(d.error.message);
     }
-    const text = d.choices?.[0]?.message?.content || "";
+    const rawText = d.choices?.[0]?.message?.content || "";
+    // Eliminar blocs de raonament <think>...</think> que alguns models generen
+    const text = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
     if (!text) throw new Error("Resposta buida de la IA");
     return text;
   } catch (e) {
