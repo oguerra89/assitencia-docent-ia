@@ -41,7 +41,7 @@ function getDisclaimerAccepted() { return localStorage.getItem("docent_disclaime
 function setDisclaimerAccepted() { localStorage.setItem("docent_disclaimer_accepted", "true"); }
 
 // ─── API GROQ ─────────────────────────────────────────────────────────────────
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 async function gemini(systemPrompt, userPrompt, maxTokens = 2400) {
   const apiKey = getApiKey();
@@ -1193,7 +1193,7 @@ function SdACreador({ onToast, onApiKeyError }) {
       setProgress("Generant marc curricular LOMLOE...");
       const raw = await geminiSDC(`Ets expert LOMLOE primària Catalunya. Per la SdA "${titol}" (fil conductor: "${fil}") amb àrees: ${arees.join(", ")}, curs: ${cursObj.label} (${cursObj.edat}), genera el MARC COMPETENCIAL OFICIAL LOMLOE.
 
-IMPORTANT: usa les competències específiques i criteris d'avaluació REALS del currículum LOMLOE català. Genera ENTRE 3 I 5 ENTRADES.
+IMPORTANT: usa les competències específiques i criteris d'avaluació REALS del currículum LOMLOE català. Genera ${arees.length === 1 ? "EXACTAMENT 5 ENTRADES de la mateixa àrea, amb CE i CA diferents" : "ENTRE 5 I 7 ENTRADES repartides entre les àrees"}.
 
 FORMAT EXACTE (respecta els prefixos CE:, CA: i SABERS: a cada línia):
 
@@ -1207,7 +1207,7 @@ CA: CA 1.2.1: Comprendre textos orals senzills procedents de diversos àmbits
 SABERS: Estratègies de comprensió oral. Vocabulari específic. Identificació d'idees principals.
 </marc>
 
-Genera el MARC competencial REAL per "${titol}" amb les àrees ${arees.join(", ")}. MÍNIM 3 ENTRADES, cadascuna amb CE:, CA: i SABERS:, separades per "---".`, 1800);
+Genera el MARC competencial REAL per "${titol}" amb les àrees ${arees.join(", ")}. ${arees.length === 1 ? "Com que només hi ha UNA àrea, genera EXACTAMENT 5 entrades amb 5 CE i CA DIFERENTS d'aquesta àrea." : "Genera ENTRE 5 I 7 ENTRADES repartides entre les àrees, com a mínim 1 per àrea."} Cadascuna amb CE:, CA: i SABERS:, separades per "---".`, 1800);
 
       const parsed = parseMarcBloc(raw);
       if (parsed.length === 0) throw new Error("No s'ha pogut parsejar el marc curricular. Torna-ho a intentar.");
