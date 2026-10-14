@@ -358,4 +358,5 @@ function GraellaSeccio({ alumnes, cicle, curriculum, criterisCustom, cellules, s
                                   {darrera.valoracio}
                                 </span>
                               )}
-               
+
+                              
