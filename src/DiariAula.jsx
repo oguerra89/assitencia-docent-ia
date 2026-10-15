@@ -166,8 +166,9 @@ function CellModal({ info, notesCella, onAfegir, onEliminar, onClose }) {
   const [val, setVal] = useState("");
   const [data, setData] = useState(avui());
 
+  const potDesar = !!text.trim() || !!val;
   const desar = () => {
-    if (!text.trim()) return;
+    if (!potDesar) return;
     onAfegir({ id: uid(), data, text: text.trim(), valoracio: val || null });
     setText(""); setVal("");
   };
@@ -208,7 +209,7 @@ function CellModal({ info, notesCella, onAfegir, onEliminar, onClose }) {
                     <button onClick={() => onEliminar(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#e57373" }}><Trash2 size={12} /></button>
                   </div>
                 </div>
-                <p style={{ fontSize:12.5, color:"#374151", margin:0, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{n.text}</p>
+                {n.text && <p style={{ fontSize:12.5, color:"#374151", margin:0, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{n.text}</p>}
               </div>
             ))
           )}
@@ -224,9 +225,9 @@ function CellModal({ info, notesCella, onAfegir, onEliminar, onClose }) {
               {VALORACIONS_DIARI.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
-          <DTxa value={text} onChange={setText} rows={3} placeholder="Escriu l'anotació..." />
+          <DTxa value={text} onChange={setText} rows={3} placeholder="Escriu l'anotació (opcional si ja poses valoració)..." />
           <div style={{ marginTop:8 }}>
-            <DBtn variant="primary" full onClick={desar} disabled={!text.trim()}><Save size={13} /> Afegir anotació</DBtn>
+            <DBtn variant="primary" full onClick={desar} disabled={!potDesar}><Save size={13} /> Afegir anotació</DBtn>
           </div>
         </div>
       </div>
@@ -659,10 +660,12 @@ function GraellaSeccio({ alumnes, tasques, bancCriteris, cellules, setCellules, 
                             <span style={{ fontSize:9.5, color:"#94a3b8" }}>{formatData(darrera.data)}</span>
                             {notes.length > 1 && <span style={{ fontSize:9.5, color:"#6366f1", fontWeight:700 }}>+{notes.length - 1}</span>}
                           </div>
-                          <div style={{ fontSize:11, color:"#374151", lineHeight:1.4,
-                            display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>
-                            {darrera.text}
-                          </div>
+                          {darrera.text && (
+                            <div style={{ fontSize:11, color:"#374151", lineHeight:1.4,
+                              display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>
+                              {darrera.text}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>
