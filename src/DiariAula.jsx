@@ -160,75 +160,121 @@ function DCard({ children, style }) {
 
 function cellKey(tascaId, tri, alumne, criteriId) { return `${tascaId}|${tri}|${alumne}|${criteriId}`; }
 
-// ─── MODAL: EDITOR DE CEL·LA ─────────────────────────────────────────────────
-function CellModal({ info, notesCella, onAfegir, onEliminar, onClose }) {
+// Conversió NA/AS/AN/AE <-> número, per calcular mitjanes (s'usa a Graella i a Fitxa alumne)
+const VAL_NUM_DIARI = { NA: 4, AS: 5.5, AN: 7.5, AE: 9.5 };
+function valoracioMajoritaria(notes) {
+  const vals = notes.map(n => n.valoracio).filter(Boolean);
+  if (vals.length === 0) return null;
+  const mitjana = vals.reduce((s, v) => s + VAL_NUM_DIARI[v], 0) / vals.length;
+  if (mitjana < 5) return "NA";
+  if (mitjana < 7) return "AS";
+  if (mitjana < 9) return "AN";
+  return "AE";
+}
+
+// ─── BLOC D'UN CRITERI (dins el panell d'alumne) ────────────────────────────
+// Desplegable: en triar una valoració es desa a l'instant, sense botó ni tancar res.
+function CriteriBlock({ criteriText, notes, onAfegir, onEliminar }) {
+  const [obert, setObert] = useState(false);
   const [text, setText] = useState("");
   const [val, setVal] = useState("");
   const [data, setData] = useState(avui());
 
-  const potDesar = !!text.trim() || !!val;
-  const desar = () => {
-    if (!potDesar) return;
-    onAfegir({ id: uid(), data, text: text.trim(), valoracio: val || null });
+  const darrera = notes.slice().sort((a,b) => b.data.localeCompare(a.data))[0];
+
+  const desar = novaVal => {
+    const v = novaVal !== undefined ? novaVal : val;
+    if (!text.trim() && !v) return;
+    onAfegir({ id: uid(), data, text: text.trim(), valoracio: v || null });
     setText(""); setVal("");
   };
+  const triarValoracio = v => { setVal(v); desar(v); };
+
+  return (
+    <div style={{ border:"1px solid #e2e8f0", borderRadius:9, marginBottom:8, overflow:"hidden" }}>
+      <button onClick={() => setObert(o => !o)} style={{ width:"100%", display:"flex", justifyContent:"space-between",
+        alignItems:"center", padding:"9px 12px", background: obert ? "#f8fafc" : "white", border:"none", cursor:"pointer", textAlign:"left" }}>
+        <span style={{ fontSize:12.5, fontWeight:600, color:"#374151" }}>{criteriText}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+          {darrera?.valoracio && (
+            <span style={{ fontSize:10, fontWeight:800, color:VAL_META_DIARI[darrera.valoracio].color,
+              background:VAL_META_DIARI[darrera.valoracio].bg, borderRadius:5, padding:"1px 6px" }}>{darrera.valoracio}</span>
+          )}
+          {notes.length > 0 && <span style={{ fontSize:10, color:"#94a3b8" }}>{notes.length}</span>}
+          {obert ? <ChevronUp size={14} color="#94a3b8" /> : <ChevronDown size={14} color="#94a3b8" />}
+        </div>
+      </button>
+      {obert && (
+        <div style={{ padding:"10px 12px", background:"#fafbfc", borderTop:"1px solid #f1f5f9" }}>
+          {notes.length > 0 && (
+            <div style={{ marginBottom:9 }}>
+              {notes.slice().sort((a,b) => b.data.localeCompare(a.data)).map(n => (
+                <div key={n.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, padding:"4px 0", borderBottom:"1px solid #f1f5f9" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:10.5, color:"#94a3b8" }}>
+                      {formatData(n.data)}{n.valoracio && <strong style={{ color:VAL_META_DIARI[n.valoracio].color }}> · {n.valoracio}</strong>}
+                    </div>
+                    {n.text && <div style={{ fontSize:12, color:"#374151" }}>{n.text}</div>}
+                  </div>
+                  <button onClick={() => onEliminar(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#e57373", flexShrink:0 }}><Trash2 size={11} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+            <DInp type="date" value={data} onChange={setData} />
+            <select value={val} onChange={e => triarValoracio(e.target.value)} style={{ ...inpBase, width:"auto", cursor:"pointer" }}>
+              <option value="">Valoració...</option>
+              {VALORACIONS_DIARI.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          <div style={{ display:"flex", gap:6 }}>
+            <DInp value={text} onChange={setText} placeholder="Anotació (opcional)..." />
+            <DBtn size="sm" onClick={() => desar()} disabled={!text.trim()}><Save size={12} /></DBtn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PANELL D'UN ALUMNE: TOTS ELS CRITERIS D'UNA TASCA ALHORA ──────────────
+function AlumneTascaModal({ alumne, tasca, criteris, tri, notesPerCriteri, onAfegir, onEliminar, onClose }) {
+  const mitjana = useMemo(() => {
+    const darreres = criteris.map(c => {
+      const notes = notesPerCriteri(c.id);
+      return notes.slice().sort((a,b) => b.data.localeCompare(a.data))[0];
+    }).filter(Boolean);
+    return valoracioMajoritaria(darreres);
+  }, [criteris, notesPerCriteri]);
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:10000,
-      display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem" }}
-      onClick={onClose}>
-      <div style={{ background:"white", borderRadius:16, width:"100%", maxWidth:520, maxHeight:"85vh",
+      display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem" }} onClick={onClose}>
+      <div style={{ background:"white", borderRadius:16, width:"100%", maxWidth:560, maxHeight:"88vh",
         display:"flex", flexDirection:"column", boxShadow:"0 24px 60px rgba(0,0,0,0.25)", overflow:"hidden" }}
         onClick={e => e.stopPropagation()}>
         <div style={{ padding:"16px 20px", borderBottom:"1px solid #f1f5f9", background:"#f8fafc" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
             <div>
-              <div style={{ fontSize:14, fontWeight:800, color:"#1e293b" }}>{info.alumne}</div>
-              <div style={{ fontSize:11, color:"#6366f1", marginTop:2 }}>{info.tascaNom} · {info.criteriText}</div>
-              <div style={{ fontSize:10, color:"#94a3b8", marginTop:2 }}>{info.trimestreLabel}</div>
+              <div style={{ fontSize:14, fontWeight:800, color:"#1e293b" }}>{alumne}</div>
+              <div style={{ fontSize:11, color:"#6366f1", marginTop:2 }}>{tasca.nom}</div>
+              <div style={{ fontSize:10, color:"#94a3b8", marginTop:2 }}>{TRIMESTRES.find(t => t.id === tri)?.label}</div>
             </div>
-            <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:2 }}><X size={18} color="#94a3b8" /></button>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              {mitjana && (
+                <span style={{ fontSize:11, fontWeight:800, color:VAL_META_DIARI[mitjana].color, background:VAL_META_DIARI[mitjana].bg,
+                  border:`1px solid ${VAL_META_DIARI[mitjana].border}`, borderRadius:8, padding:"3px 9px" }}>Mitjana: {mitjana}</span>
+              )}
+              <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:2 }}><X size={18} color="#94a3b8" /></button>
+            </div>
           </div>
         </div>
-
         <div style={{ padding:"14px 20px", overflowY:"auto", flex:1 }}>
-          {notesCella.length === 0 ? (
-            <p style={{ fontSize:12, color:"#94a3b8", textAlign:"center", padding:"1rem 0" }}>Encara no hi ha anotacions en aquesta cel·la.</p>
-          ) : (
-            notesCella.slice().sort((a,b) => b.data.localeCompare(a.data)).map(n => (
-              <div key={n.id} style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:9, padding:"9px 11px", marginBottom:8 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                  <span style={{ fontSize:11, color:"#94a3b8" }}>{formatData(n.data)}</span>
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    {n.valoracio && (
-                      <span style={{ fontSize:10, fontWeight:800, color:VAL_META_DIARI[n.valoracio].color,
-                        background:VAL_META_DIARI[n.valoracio].bg, border:`1px solid ${VAL_META_DIARI[n.valoracio].border}`, borderRadius:6, padding:"1px 6px" }}>
-                        {n.valoracio}
-                      </span>
-                    )}
-                    <button onClick={() => onEliminar(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#e57373" }}><Trash2 size={12} /></button>
-                  </div>
-                </div>
-                {n.text && <p style={{ fontSize:12.5, color:"#374151", margin:0, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{n.text}</p>}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={{ padding:"14px 20px", borderTop:"1px solid #f1f5f9", background:"#f8fafc" }}>
-          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-            <div style={{ flex:1 }}>
-              <DInp type="date" value={data} onChange={setData} />
-            </div>
-            <select value={val} onChange={e => setVal(e.target.value)} style={{ ...inpBase, width:"auto", cursor:"pointer" }}>
-              <option value="">Sense valoració</option>
-              {VALORACIONS_DIARI.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-          <DTxa value={text} onChange={setText} rows={3} placeholder="Escriu l'anotació (opcional si ja poses valoració)..." />
-          <div style={{ marginTop:8 }}>
-            <DBtn variant="primary" full onClick={desar} disabled={!potDesar}><Save size={13} /> Afegir anotació</DBtn>
-          </div>
+          {criteris.map(c => (
+            <CriteriBlock key={c.id} criteriText={c.text} notes={notesPerCriteri(c.id)}
+              onAfegir={nota => onAfegir(c.id, nota)} onEliminar={notaId => onEliminar(c.id, notaId)} />
+          ))}
         </div>
       </div>
     </div>
@@ -557,7 +603,7 @@ function TasquesSeccio({ tasques, setTasques, bancCriteris, setBancCriteris }) {
 function GraellaSeccio({ alumnes, tasques, bancCriteris, cellules, setCellules, onToast }) {
   const [tascaId, setTascaId] = useDiariState("graella_tasca", null);
   const [tri, setTri] = useDiariState("graella_tri", 1);
-  const [obert, setObert] = useState(null);
+  const [obert, setObert] = useState(null); // nom de l'alumne, o null
 
   const tasca = tasques.find(t => t.id === tascaId) || tasques[0];
   const criteris = tasca ? tasca.criterisIds.map(cid => {
@@ -566,6 +612,14 @@ function GraellaSeccio({ alumnes, tasques, bancCriteris, cellules, setCellules, 
   }) : [];
 
   const notesDe = (alumne, criteriId) => tasca ? (cellules[cellKey(tasca.id, tri, alumne, criteriId)] || []) : [];
+
+  const mitjanaAlumne = alumne => {
+    const darreres = criteris.map(c => {
+      const notes = notesDe(alumne, c.id);
+      return notes.slice().sort((a,b) => b.data.localeCompare(a.data))[0];
+    }).filter(Boolean);
+    return valoracioMajoritaria(darreres);
+  };
 
   const afegirAnotacio = (alumne, criteriId, nota) => {
     const key = cellKey(tasca.id, tri, alumne, criteriId);
@@ -627,63 +681,81 @@ function GraellaSeccio({ alumnes, tasques, bancCriteris, cellules, setCellules, 
                   {c.text}
                 </th>
               ))}
+              <th style={{ background:"#f8fafc", borderBottom:"1.5px solid #e2e8f0", borderLeft:"1.5px solid #e2e8f0",
+                padding:"8px 10px", minWidth:85, textAlign:"left", fontSize:11, fontWeight:800, color:"#059669",
+                textTransform:"uppercase", letterSpacing:"0.03em" }}>
+                Mitjana
+              </th>
             </tr>
           </thead>
           <tbody>
-            {alumnes.map((alumne, ai) => (
-              <tr key={alumne} style={{ background: ai % 2 === 0 ? "white" : "#fafbfc" }}>
-                <td style={{ position:"sticky", left:0, zIndex:1, background: ai % 2 === 0 ? "white" : "#fafbfc",
-                  borderRight:"1.5px solid #e2e8f0", borderBottom:"1px solid #f1f5f9", padding:"7px 12px",
-                  fontWeight:600, color:"#1e293b", whiteSpace:"nowrap" }}>
-                  {alumne}
-                </td>
-                {criteris.map(c => {
-                  const notes = notesDe(alumne, c.id);
-                  const darrera = notes.slice().sort((a,b) => b.data.localeCompare(a.data))[0];
-                  return (
-                    <td key={c.id} onClick={() => setObert({ alumne, criteriId: c.id, criteriText: c.text })}
-                      style={{ borderLeft:"1px solid #f1f5f9", borderBottom:"1px solid #f1f5f9", padding:"6px 8px",
-                        cursor:"pointer", verticalAlign:"top" }}
-                      onMouseEnter={e => e.currentTarget.style.background = "#eef2ff"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                      {notes.length === 0 ? (
-                        <span style={{ color:"#cbd5e1", fontSize:14 }}>+</span>
-                      ) : (
-                        <div>
-                          <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
-                            {darrera.valoracio && (
-                              <span style={{ fontSize:9.5, fontWeight:800, color:VAL_META_DIARI[darrera.valoracio].color,
-                                background:VAL_META_DIARI[darrera.valoracio].bg, borderRadius:5, padding:"0 4px" }}>
-                                {darrera.valoracio}
-                              </span>
-                            )}
-                            <span style={{ fontSize:9.5, color:"#94a3b8" }}>{formatData(darrera.data)}</span>
-                            {notes.length > 1 && <span style={{ fontSize:9.5, color:"#6366f1", fontWeight:700 }}>+{notes.length - 1}</span>}
-                          </div>
-                          {darrera.text && (
-                            <div style={{ fontSize:11, color:"#374151", lineHeight:1.4,
-                              display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>
-                              {darrera.text}
+            {alumnes.map((alumne, ai) => {
+              const mitjana = mitjanaAlumne(alumne);
+              return (
+                <tr key={alumne} style={{ background: ai % 2 === 0 ? "white" : "#fafbfc" }}>
+                  <td onClick={() => setObert(alumne)} style={{ position:"sticky", left:0, zIndex:1, background: ai % 2 === 0 ? "white" : "#fafbfc",
+                    borderRight:"1.5px solid #e2e8f0", borderBottom:"1px solid #f1f5f9", padding:"7px 12px",
+                    fontWeight:600, color:"#1e293b", whiteSpace:"nowrap", cursor:"pointer" }}>
+                    {alumne}
+                  </td>
+                  {criteris.map(c => {
+                    const notes = notesDe(alumne, c.id);
+                    const darrera = notes.slice().sort((a,b) => b.data.localeCompare(a.data))[0];
+                    return (
+                      <td key={c.id} onClick={() => setObert(alumne)}
+                        style={{ borderLeft:"1px solid #f1f5f9", borderBottom:"1px solid #f1f5f9", padding:"6px 8px",
+                          cursor:"pointer", verticalAlign:"top" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#eef2ff"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        {notes.length === 0 ? (
+                          <span style={{ color:"#cbd5e1", fontSize:14 }}>+</span>
+                        ) : (
+                          <div>
+                            <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
+                              {darrera.valoracio && (
+                                <span style={{ fontSize:9.5, fontWeight:800, color:VAL_META_DIARI[darrera.valoracio].color,
+                                  background:VAL_META_DIARI[darrera.valoracio].bg, borderRadius:5, padding:"0 4px" }}>
+                                  {darrera.valoracio}
+                                </span>
+                              )}
+                              <span style={{ fontSize:9.5, color:"#94a3b8" }}>{formatData(darrera.data)}</span>
+                              {notes.length > 1 && <span style={{ fontSize:9.5, color:"#6366f1", fontWeight:700 }}>+{notes.length - 1}</span>}
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                            {darrera.text && (
+                              <div style={{ fontSize:11, color:"#374151", lineHeight:1.4,
+                                display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>
+                                {darrera.text}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td onClick={() => setObert(alumne)} style={{ borderLeft:"1.5px solid #f1f5f9", borderBottom:"1px solid #f1f5f9",
+                    padding:"6px 10px", cursor:"pointer", textAlign:"center", verticalAlign:"middle" }}>
+                    {mitjana ? (
+                      <span style={{ fontSize:12, fontWeight:800, color:VAL_META_DIARI[mitjana].color,
+                        background:VAL_META_DIARI[mitjana].bg, border:`1px solid ${VAL_META_DIARI[mitjana].border}`,
+                        borderRadius:7, padding:"3px 9px" }}>{mitjana}</span>
+                    ) : (
+                      <span style={{ color:"#cbd5e1", fontSize:12 }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      <p style={{ fontSize:11, color:"#94a3b8", padding:"8px 16px 0" }}>Clica el nom o qualsevol cel·la d'un alumne per obrir tots els criteris de la tasca alhora.</p>
 
-      {obert && (
-        <CellModal
-          info={{ alumne: obert.alumne, criteriText: obert.criteriText, tascaNom: tasca.nom,
-            trimestreLabel: TRIMESTRES.find(t => t.id === tri)?.label }}
-          notesCella={notesDe(obert.alumne, obert.criteriId)}
-          onAfegir={nota => afegirAnotacio(obert.alumne, obert.criteriId, nota)}
-          onEliminar={notaId => eliminarAnotacio(obert.alumne, obert.criteriId, notaId)}
+      {obert && tasca && (
+        <AlumneTascaModal
+          alumne={obert} tasca={tasca} criteris={criteris} tri={tri}
+          notesPerCriteri={criteriId => notesDe(obert, criteriId)}
+          onAfegir={(criteriId, nota) => afegirAnotacio(obert, criteriId, nota)}
+          onEliminar={(criteriId, notaId) => eliminarAnotacio(obert, criteriId, notaId)}
           onClose={() => setObert(null)}
         />
       )}
@@ -699,18 +771,6 @@ function flattenCellules(cellules) {
     (notes || []).forEach(n => out.push({ ...n, tascaId, tri: Number(tri), alumne, criteriId }));
   });
   return out;
-}
-
-// Conversió NA/AS/AN/AE <-> número, per calcular una valoració "majoritària"
-const VAL_NUM_DIARI = { NA: 4, AS: 5.5, AN: 7.5, AE: 9.5 };
-function valoracioMajoritaria(notes) {
-  const vals = notes.map(n => n.valoracio).filter(Boolean);
-  if (vals.length === 0) return null;
-  const mitjana = vals.reduce((s, v) => s + VAL_NUM_DIARI[v], 0) / vals.length;
-  if (mitjana < 5) return "NA";
-  if (mitjana < 7) return "AS";
-  if (mitjana < 9) return "AN";
-  return "AE";
 }
 
 function TascaResumCard({ tascaId, notesTasca, infoTasca, bancCriteris }) {
