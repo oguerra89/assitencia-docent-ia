@@ -264,6 +264,21 @@ function valoracioMajoritariaInf(vals) {
   return "AE";
 }
 
+// ─── EXCEL (carrega SheetJS des d'un CDN la primera vegada que cal) ─────────
+let _xlsxPromesaApp = null;
+function carregarXLSX() {
+  if (typeof window !== "undefined" && window.XLSX) return Promise.resolve(window.XLSX);
+  if (_xlsxPromesaApp) return _xlsxPromesaApp;
+  _xlsxPromesaApp = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error("No s'ha pogut carregar la llibreria d'Excel. Comprova la connexió a internet."));
+    document.head.appendChild(script);
+  });
+  return _xlsxPromesaApp;
+}
+
 const CRITERIS_GENERAL_INF_DEFAULT = [
   "Millora al llarg del període",
   "Comportament",
@@ -2320,6 +2335,40 @@ function InformesTab({ onToast, onApiKeyError }) {
     setPreviewDiari(null);
   }
 
+  async function exportarExcelInformes() {
+    let XLSX;
+    try { XLSX = await carregarXLSX(); } catch (e) { alert(e.message); return; }
+
+    const sanititzarNomFull = nom => nom.replace(/[:\\/?*\[\]]/g, "").slice(0, 31);
+
+    const wb = XLSX.utils.book_new();
+    arees.forEach(areaId => {
+      const areaInfo = AREES_INF.find(a => a.id === areaId);
+      let files;
+      if (areaId === "general") {
+        files = alumnes.map((alumne, ai) => {
+          const row = { Alumne: alumne };
+          criterisGeneral.forEach((c, ci) => { row[c] = getValG(ai, ci) || ""; });
+          row["Comentari"] = comentarisGeneral[ai] || "";
+          return row;
+        });
+      } else {
+        const crit = criterisPerArea[areaId] || [];
+        files = alumnes.map((alumne, ai) => {
+          const row = { Alumne: alumne };
+          crit.forEach((c, ci) => { row[c] = ((valoracions[areaId] || {})[ai] || {})[ci] || ""; });
+          row["Comentari"] = (comentaris[areaId] || {})[ai] || "";
+          return row;
+        });
+      }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(files), sanititzarNomFull(areaInfo?.label || areaId));
+    });
+
+    const nomFitxer = `informes_${(trimestreObj?.label || "trimestre").replace(/\s+/g, "_")}_${(curs || "").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, nomFitxer);
+    onToast && onToast("Excel generat");
+  }
+
   function llegenda() {
     return `DEFINICIONS EXACTES:\n- NA = No ha assolit els objectius.\n- AS = Assoliment suficient. Necessita ajuda.\n- AN = Assoliment notable.\n- AE = Assoliment excel·lent.\nIMPORTANT: AE > AN > AS > NA.`;
   }
@@ -2698,6 +2747,9 @@ function InformesTab({ onToast, onApiKeyError }) {
                 </button>
                 <button onClick={exportarTots} style={{ ...pBtnInf, flex:1, background:"#2e7d32", fontSize:"0.82rem" }}>
                   📋 Copiar tots
+                </button>
+                <button onClick={exportarExcelInformes} style={{ ...pBtnInf, flex:1, background:"#1565c0", fontSize:"0.82rem" }}>
+                  📊 Excel
                 </button>
               </div>
 
