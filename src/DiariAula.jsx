@@ -665,11 +665,15 @@ function TasquesSeccio({ tasques, setTasques, bancCriteris, setBancCriteris }) {
 // ─── GRAELLA ─────────────────────────────────────────────────────────────────
 function GraellaSeccio({ alumnes, tasques, bancCriteris, cellules, setCellules, onToast }) {
   const [tri, setTri] = useDiariState("graella_tri", 1);
+  const [areaSel, setAreaSel] = useDiariState("graella_area", null);
   const [tascaId, setTascaId] = useDiariState("graella_tasca", null);
   const [obert, setObert] = useState(null); // nom de l'alumne, o null
 
   const tasquesDelTri = tasques.filter(t => t.trimestre === tri);
-  const tasca = tasquesDelTri.find(t => t.id === tascaId) || tasquesDelTri[0];
+  const areesAmbTasca = AREES_DIARI.filter(a => tasquesDelTri.some(t => t.area === a.id));
+  const areaActual = areesAmbTasca.find(a => a.id === areaSel) || areesAmbTasca[0];
+  const tasquesDeArea = areaActual ? tasquesDelTri.filter(t => t.area === areaActual.id) : [];
+  const tasca = tasquesDeArea.find(t => t.id === tascaId) || tasquesDeArea[0];
   const criteris = tasca ? tasca.criterisIds.map(cid => {
     const item = (bancCriteris[tasca.area] || []).find(c => c.id === cid);
     return { id: cid, text: item?.text || "?" };
@@ -718,19 +722,33 @@ function GraellaSeccio({ alumnes, tasques, bancCriteris, cellules, setCellules, 
             );
           })}
         </div>
-        <div>
-          <label style={{ fontSize:11, fontWeight:600, color:"#64748b", display:"block", marginBottom:4 }}>Tasca</label>
-          {tasquesDelTri.length === 0 ? (
-            <p style={{ fontSize:12, color:"#94a3b8" }}>No hi ha cap tasca creada per a aquest trimestre.</p>
-          ) : (
-            <select value={tasca?.id || ""} onChange={e => setTascaId(e.target.value)} style={{ ...inpBase, cursor:"pointer" }}>
-              {tasquesDelTri.map(t => {
-                const a = AREES_DIARI.find(x => x.id === t.area);
-                return <option key={t.id} value={t.id}>{a?.icon} {t.nom}</option>;
-              })}
-            </select>
-          )}
-        </div>
+        {tasquesDelTri.length === 0 ? (
+          <p style={{ fontSize:12, color:"#94a3b8" }}>No hi ha cap tasca creada per a aquest trimestre.</p>
+        ) : (
+          <>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:"#64748b", display:"block", marginBottom:4 }}>Àrea</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {areesAmbTasca.map(a => {
+                  const sel = areaActual?.id === a.id;
+                  return (
+                    <button key={a.id} onClick={() => { setAreaSel(a.id); setTascaId(null); }} style={{
+                      padding:"5px 11px", borderRadius:20, cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit",
+                      border: sel ? "1.5px solid #6366f1" : "1.5px solid #e2e8f0",
+                      background: sel ? "#eef2ff" : "white", color: sel ? "#4338ca" : "#64748b",
+                    }}>{a.icon} {a.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:"#64748b", display:"block", marginBottom:4 }}>Tasca</label>
+              <select value={tasca?.id || ""} onChange={e => setTascaId(e.target.value)} style={{ ...inpBase, cursor:"pointer" }}>
+                {tasquesDeArea.map(t => <option key={t.id} value={t.id}>{t.nom}</option>)}
+              </select>
+            </div>
+          </>
+        )}
       </div>
 
       {!tasca ? null : (
@@ -1076,9 +1094,84 @@ function FitxaAlumneSeccio({ alumnes, cellules, tasques, bancCriteris }) {
   );
 }
 
+// ─── EXCEL (carrega SheetJS des d'un CDN la primera vegada que cal) ─────────
+let _xlsxPromesaDiari = null;
+function carregarXLSX() {
+  if (typeof window !== "undefined" && window.XLSX) return Promise.resolve(window.XLSX);
+  if (_xlsxPromesaDiari) return _xlsxPromesaDiari;
+  _xlsxPromesaDiari = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error("No s'ha pogut carregar la llibreria d'Excel. Comprova la connexió a internet."));
+    document.head.appendChild(script);
+  });
+  return _xlsxPromesaDiari;
+}
+
+async function exportarExcelDiari(alumnes, tasques, cellules, bancCriteris, onToast) {
+  let XLSX;
+  try { XLSX = await carregarXLSX(); } catch (e) { alert(e.message); return; }
+
+  // Full "Anotacions": totes les anotacions, una fila per cadascuna
+  const filesAnotacions = [];
+  Object.entries(cellules).forEach(([key, notes]) => {
+    const [tascaId, alumne, criteriId] = key.split("|");
+    const tasca = tasques.find(t => t.id === tascaId);
+    if (!tasca) return;
+    const criteriText = (bancCriteris[tasca.area] || []).find(c => c.id === criteriId)?.text || criteriId;
+    const areaLabel = AREES_DIARI.find(a => a.id === tasca.area)?.label || tasca.area;
+    (notes || []).forEach(n => {
+      filesAnotacions.push({
+        Alumne: alumne, Trimestre: tasca.trimestre, Àrea: areaLabel, Tasca: tasca.nom,
+        Criteri: criteriText, Data: formatData(n.data), Valoració: n.valoracio || "", Anotació: n.text || "",
+      });
+    });
+  });
+  filesAnotacions.sort((a, b) => (a.Alumne || "").localeCompare(b.Alumne) || a.Trimestre - b.Trimestre);
+
+  // Full "Resum per criteri": mitjana per alumne x àrea x criteri (darrera nota de cada tasca)
+  const resum = {};
+  Object.entries(cellules).forEach(([key, notes]) => {
+    const [tascaId, alumne, criteriId] = key.split("|");
+    const tasca = tasques.find(t => t.id === tascaId);
+    if (!tasca || !notes.length) return;
+    const criteriText = (bancCriteris[tasca.area] || []).find(c => c.id === criteriId)?.text || criteriId;
+    const darrera = notes.slice().sort((a, b) => b.data.localeCompare(a.data))[0];
+    if (!darrera.valoracio) return;
+    const rk = `${alumne}|${tasca.area}|${criteriText}`;
+    resum[rk] = resum[rk] || { alumne, area: tasca.area, criteriText, vals: [] };
+    resum[rk].vals.push(darrera.valoracio);
+  });
+  const filesResum = Object.values(resum).map(r => ({
+    Alumne: r.alumne,
+    Àrea: AREES_DIARI.find(a => a.id === r.area)?.label || r.area,
+    Criteri: r.criteriText,
+    Mitjana: valoracioMajoritaria(r.vals.map(v => ({ valoracio: v }))),
+    "Nombre d'activitats": r.vals.length,
+  })).sort((a, b) => a.Alumne.localeCompare(b.Alumne) || a.Àrea.localeCompare(b.Àrea));
+
+  if (filesAnotacions.length === 0) {
+    alert("Encara no hi ha cap anotació registrada.");
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filesResum), "Resum per criteri");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filesAnotacions), "Anotacions");
+  XLSX.writeFile(wb, `diari_aula_${avui()}.xlsx`);
+  onToast && onToast("Excel generat");
+}
+
 // ─── BACKUP ───────────────────────────────────────────────────────────────────
 function BackupBarra({ alumnes, cellules, tasques, bancCriteris, curs, setAlumnes, setCellules, setTasques, setBancCriteris, setCurs, onToast }) {
   const fileRef = useRef(null);
+  const [exportantExcel, setExportantExcel] = useState(false);
+  const clicExcel = async () => {
+    setExportantExcel(true);
+    await exportarExcelDiari(alumnes, tasques, cellules, bancCriteris, onToast);
+    setExportantExcel(false);
+  };
   const exportarTot = () => {
     const payload = { versio: 4, exportat: new Date().toISOString(), alumnes, cellules, tasques, bancCriteris, curs };
     const a = document.createElement("a");
@@ -1106,6 +1199,9 @@ function BackupBarra({ alumnes, cellules, tasques, bancCriteris, curs, setAlumne
   };
   return (
     <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginBottom:16, flexWrap:"wrap" }}>
+      <DBtn size="sm" onClick={clicExcel} disabled={exportantExcel}>
+        <Download size={12} /> {exportantExcel ? "Generant..." : "Exportar a Excel"}
+      </DBtn>
       <DBtn size="sm" onClick={exportarTot}><Download size={12} /> Backup complet (.json)</DBtn>
       <DBtn size="sm" onClick={() => fileRef.current?.click()}><Upload size={12} /> Importar backup</DBtn>
       <input ref={fileRef} type="file" accept=".json" onChange={importarTot} style={{ display:"none" }} />
